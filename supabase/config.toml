@@ -1,0 +1,2 @@
+# Set via `supabase link` or replace with your project ref from the Supabase dashboard.
+project_id = "your-project-ref"
