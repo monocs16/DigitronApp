@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTechnicians } from "@/hooks/use-technicians";
+import { PageHeader } from "@/components/page-header";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, Trash2, ImageIcon } from "lucide-react";
@@ -22,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getStatusLabel, type OrderStatus } from "@/lib/digitron";
+import { StatusBadge } from "@/components/status-badge";
 import { allowedNextStatuses } from "@/lib/state-machine";
 
 export const Route = createFileRoute("/_authenticated/orders/$orderId")({
@@ -54,17 +57,7 @@ function OrderDetailPage() {
     },
   });
 
-  const { data: techs = [] } = useQuery({
-    queryKey: ["technicians"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, role")
-        .order("full_name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: techs = [] } = useTechnicians({ includeRole: true });
 
   const { data: audit = [] } = useQuery({
     queryKey: ["audit", orderId],
@@ -248,17 +241,12 @@ function OrderDetailPage() {
         </Button>
       </div>
 
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{order.order_number}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t("orders.createdAt", { date: new Date(order.created_at).toLocaleString() })}
-          </p>
-        </div>
-        <Badge variant="secondary" className="text-sm">
-          {getStatusLabel(order.status, t)}
-        </Badge>
-      </div>
+      <PageHeader
+        title={order.order_number}
+        subtitle={t("orders.createdAt", { date: new Date(order.created_at).toLocaleString() })}
+      >
+        <StatusBadge status={order.status} t={t} />
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">

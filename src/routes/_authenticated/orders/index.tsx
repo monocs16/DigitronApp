@@ -3,10 +3,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { PlusCircle, Search } from "lucide-react";
+import { useTechnicians } from "@/hooks/use-technicians";
+import { PageHeader } from "@/components/page-header";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getStatusLabel, STATUS_ORDER, type OrderStatus } from "@/lib/digitron";
+import { StatusBadge } from "@/components/status-badge";
 
 type OrdersSearch = { clientId?: string; equipmentId?: string };
 
@@ -85,17 +87,7 @@ function OrdersPage() {
     },
   });
 
-  const { data: techs = [] } = useQuery({
-    queryKey: ["technicians"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .order("full_name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: techs = [] } = useTechnicians();
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -119,18 +111,14 @@ function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("orders.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("orders.subtitle")}</p>
-        </div>
+      <PageHeader title={t("orders.title")} subtitle={t("orders.subtitle")}>
         <Button asChild>
           <Link to="/orders/new">
             <PlusCircle className="mr-2 h-4 w-4" />
             {t("orders.newOrder")}
           </Link>
         </Button>
-      </div>
+      </PageHeader>
 
       {(clientId || equipmentId) && (
         <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -252,7 +240,7 @@ function OrdersPage() {
                         : t("common.noData")}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{getStatusLabel(o.status, t)}</Badge>
+                      <StatusBadge status={o.status} t={t} />
                     </TableCell>
                     <TableCell>{o.technician?.full_name ?? t("common.noData")}</TableCell>
                     <TableCell className="text-muted-foreground">

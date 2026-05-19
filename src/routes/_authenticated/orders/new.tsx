@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTechnicians } from "@/hooks/use-technicians";
+import { useClientsMin } from "@/hooks/use-clients-min";
+import { PageHeader } from "@/components/page-header";
+import { EquipmentFormDialog } from "@/components/equipment-form-dialog";
+import { ClientFormDialog } from "@/components/client-form-dialog";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import i18n from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,20 +31,17 @@ export const Route = createFileRoute("/_authenticated/orders/new")({
 function NewOrderPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const qc = useQueryClient();
+
   const [clientId, setClientId] = useState("");
   const [equipmentId, setEquipmentId] = useState("");
   const [technicianId, setTechnicianId] = useState<string>("none");
   const [problem, setProblem] = useState("");
   const [estimated, setEstimated] = useState("");
+  const [clientDialogOpen, setClientDialogOpen] = useState(false);
+  const [equipmentDialogOpen, setEquipmentDialogOpen] = useState(false);
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ["clients-min"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("clients").select("id, name").order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: clients = [] } = useClientsMin();
 
   const { data: equipment = [] } = useQuery({
     queryKey: ["equipment-by-client", clientId],
@@ -53,23 +56,13 @@ function NewOrderPage() {
     },
   });
 
-  const { data: techs = [] } = useQuery({
-    queryKey: ["technicians"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .order("full_name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: techs = [] } = useTechnicians();
 
   useEffect(() => {
     setEquipmentId("");
   }, [clientId]);
 
-  const create = useMutation({
+  const createOrder = useMutation({
     mutationFn: async () => {
       if (!clientId) throw new Error(i18n.t("orders.selectClient"));
       if (!equipmentId) throw new Error(i18n.t("orders.selectEquipmentError"));
@@ -97,10 +90,7 @@ function NewOrderPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("orders.newTitle")}</h1>
-        <p className="text-sm text-muted-foreground">{t("orders.newSubtitle")}</p>
-      </div>
+      <PageHeader title={t("orders.newTitle")} subtitle={t("orders.newSubtitle")} />
 
       <Card>
         <CardHeader>
@@ -108,8 +98,21 @@ function NewOrderPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
+            {/* Client select */}
             <div className="space-y-2">
-              <Label>{t("common.client")} *</Label>
+              <div className="flex items-center justify-between">
+                <Label>{t("common.client")} *</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setClientDialogOpen(true)}
+                >
+                  <Plus className="h-3 w-3" />
+                  {t("clients.newClient")}
+                </Button>
+              </div>
               <Select value={clientId} onValueChange={setClientId}>
                 <SelectTrigger>
                   <SelectValue placeholder={t("common.select")} />
@@ -123,8 +126,23 @@ function NewOrderPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Equipment select */}
             <div className="space-y-2">
-              <Label>{t("common.equipment")} *</Label>
+              <div className="flex items-center justify-between">
+                <Label>{t("common.equipment")} *</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  disabled={!clientId}
+                  onClick={() => setEquipmentDialogOpen(true)}
+                >
+                  <Plus className="h-3 w-3" />
+                  {t("equipmentPage.newEquipment")}
+                </Button>
+              </div>
               <Select value={equipmentId} onValueChange={setEquipmentId} disabled={!clientId}>
                 <SelectTrigger>
                   <SelectValue
@@ -142,6 +160,7 @@ function NewOrderPage() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2 sm:col-span-2">
               <Label>{t("orders.problemReported")}</Label>
               <Textarea
@@ -181,13 +200,32 @@ function NewOrderPage() {
               <Button asChild variant="outline">
                 <Link to="/orders">{t("common.cancel")}</Link>
               </Button>
-              <Button onClick={() => create.mutate()} disabled={create.isPending}>
-                {create.isPending ? t("common.saving") : t("orders.createOrder")}
+              <Button onClick={() => createOrder.mutate()} disabled={createOrder.isPending}>
+                {createOrder.isPending ? t("common.saving") : t("orders.createOrder")}
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <ClientFormDialog
+        open={clientDialogOpen}
+        onOpenChange={setClientDialogOpen}
+        onSuccess={(id) => {
+          qc.invalidateQueries({ queryKey: ["clients-min"] });
+          setClientId(id);
+        }}
+      />
+
+      <EquipmentFormDialog
+        open={equipmentDialogOpen}
+        onOpenChange={setEquipmentDialogOpen}
+        lockedClientId={clientId}
+        onSuccess={(id) => {
+          qc.invalidateQueries({ queryKey: ["equipment-by-client", clientId] });
+          setEquipmentId(id);
+        }}
+      />
     </div>
   );
 }

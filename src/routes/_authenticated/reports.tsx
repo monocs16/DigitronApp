@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -105,10 +106,7 @@ function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("reports.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("reports.subtitle")}</p>
-      </div>
+      <PageHeader title={t("reports.title")} subtitle={t("reports.subtitle")} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocale, type AppLocale } from "@/hooks/use-locale";
 import { useTheme, type Theme } from "@/hooks/use-theme";
 import i18n from "@/lib/i18n";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,10 +56,7 @@ function ConfiguracionPage() {
 
   return (
     <div className="space-y-6 max-w-lg">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("settings.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("settings.subtitle")}</p>
-      </div>
+      <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
       <Card>
         <CardHeader>

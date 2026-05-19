@@ -27,6 +27,7 @@ import {
 import { Trash2 } from "lucide-react";
 import { getRoleLabel } from "@/lib/digitron";
 import { useAuth } from "@/hooks/use-auth";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsersPage,
@@ -104,10 +105,7 @@ function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("users.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("users.subtitle")}</p>
-      </div>
+      <PageHeader title={t("users.title")} subtitle={t("users.subtitle")} />
 
       <Card>
         <CardHeader>

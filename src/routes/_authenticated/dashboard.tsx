@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getStatusLabel, STATUS_ORDER, type OrderStatus } from "@/lib/digitron";
+import { StatusBadge } from "@/components/status-badge";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
@@ -70,12 +72,10 @@ function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("dashboard.title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("dashboard.welcome", { name: profile?.full_name ?? "" })}
-        </p>
-      </div>
+      <PageHeader
+        title={t("dashboard.title")}
+        subtitle={t("dashboard.welcome", { name: profile?.full_name ?? "" })}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((c) => (
@@ -112,7 +112,7 @@ function DashboardPage() {
                     >
                       {o.order_number}
                     </Link>
-                    <Badge variant="outline">{getStatusLabel(o.status, t)}</Badge>
+                    <StatusBadge status={o.status} t={t} />
                   </li>
                 ))}
               </ul>
@@ -151,7 +151,7 @@ function DashboardPage() {
                           {t("dashboard.partBadge")}
                         </Badge>
                       )}
-                      <Badge variant="secondary">{getStatusLabel(o.status, t)}</Badge>
+                      <StatusBadge status={o.status} t={t} />
                     </div>
                   </li>
                 ))}
