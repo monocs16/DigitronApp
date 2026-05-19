@@ -2,23 +2,13 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  listUsers,
-  createUser,
-  updateUserRole,
-  deleteUser,
-} from "@/lib/users.functions";
+import { listUsers, createUser, updateUserRole, deleteUser } from "@/lib/users.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -35,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2 } from "lucide-react";
-import { ROLE_LABELS } from "@/lib/digitron";
+import { getRoleLabel } from "@/lib/digitron";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
@@ -43,6 +33,7 @@ export const Route = createFileRoute("/_authenticated/usuarios")({
 });
 
 function UsersPage() {
+  const { t } = useTranslation();
   const { loading: authLoading, profile } = useAuth();
   const qc = useQueryClient();
   const list = useServerFn(listUsers);
@@ -56,13 +47,12 @@ function UsersPage() {
     enabled: profile?.role === "admin",
   });
 
-  if (authLoading) {
-    return <p className="text-sm text-muted-foreground">Cargando…</p>;
-  }
-
-  if (profile?.role !== "admin") {
-    return <Navigate to="/dashboard" replace />;
-  }
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    full_name: "",
+    role: "technician" as "admin" | "technician",
+  });
 
   const createMut = useMutation({
     mutationFn: (input: {
@@ -72,66 +62,62 @@ function UsersPage() {
       role: "admin" | "technician";
     }) => create({ data: input }),
     onSuccess: () => {
-      toast.success("Usuario creado");
+      toast.success(t("users.created"));
       qc.invalidateQueries({ queryKey: ["users"] });
     },
-    onError: (e: Error) => toast.error("Error", { description: e.message }),
+    onError: (e: Error) => toast.error(t("common.error"), { description: e.message }),
   });
 
   const roleMut = useMutation({
     mutationFn: (input: { user_id: string; role: "admin" | "technician" }) =>
       updRole({ data: input }),
     onSuccess: () => {
-      toast.success("Rol actualizado");
+      toast.success(t("users.roleUpdated"));
       qc.invalidateQueries({ queryKey: ["users"] });
     },
-    onError: (e: Error) => toast.error("Error", { description: e.message }),
+    onError: (e: Error) => toast.error(t("common.error"), { description: e.message }),
   });
 
   const delMut = useMutation({
     mutationFn: (user_id: string) => del({ data: { user_id } }),
     onSuccess: () => {
-      toast.success("Usuario eliminado");
+      toast.success(t("users.deleted"));
       qc.invalidateQueries({ queryKey: ["users"] });
     },
-    onError: (e: Error) => toast.error("Error", { description: e.message }),
+    onError: (e: Error) => toast.error(t("common.error"), { description: e.message }),
   });
 
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-    full_name: "",
-    role: "technician" as "admin" | "technician",
-  });
+  if (authLoading) {
+    return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+  }
+
+  if (profile?.role !== "admin") {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     createMut.mutate(form, {
-      onSuccess: () =>
-        setForm({ email: "", password: "", full_name: "", role: "technician" }),
+      onSuccess: () => setForm({ email: "", password: "", full_name: "", role: "technician" }),
     });
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
-        <p className="text-sm text-muted-foreground">
-          Cree y administre los usuarios del sistema.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("users.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("users.subtitle")}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Nuevo usuario</CardTitle>
-          <CardDescription>
-            La contraseña se entrega manualmente al usuario.
-          </CardDescription>
+          <CardTitle className="text-base">{t("users.newUser")}</CardTitle>
+          <CardDescription>{t("users.passwordHint")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-5">
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="name">Nombre completo</Label>
+              <Label htmlFor="name">{t("users.fullName")}</Label>
               <Input
                 id="name"
                 required
@@ -140,7 +126,7 @@ function UsersPage() {
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="email">Correo</Label>
+              <Label htmlFor="email">{t("users.email")}</Label>
               <Input
                 id="email"
                 type="email"
@@ -150,24 +136,22 @@ function UsersPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role">Rol</Label>
+              <Label htmlFor="role">{t("users.role")}</Label>
               <Select
                 value={form.role}
-                onValueChange={(v) =>
-                  setForm({ ...form, role: v as "admin" | "technician" })
-                }
+                onValueChange={(v) => setForm({ ...form, role: v as "admin" | "technician" })}
               >
                 <SelectTrigger id="role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="technician">Técnico</SelectItem>
-                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="technician">{getRoleLabel("technician", t)}</SelectItem>
+                  <SelectItem value="admin">{getRoleLabel("admin", t)}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="pwd">Contraseña temporal</Label>
+              <Label htmlFor="pwd">{t("users.tempPassword")}</Label>
               <Input
                 id="pwd"
                 type="text"
@@ -179,7 +163,7 @@ function UsersPage() {
             </div>
             <div className="flex items-end md:col-span-3">
               <Button type="submit" disabled={createMut.isPending}>
-                {createMut.isPending ? "Creando…" : "Crear usuario"}
+                {createMut.isPending ? t("users.creating") : t("users.createUser")}
               </Button>
             </div>
           </form>
@@ -188,18 +172,18 @@ function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Usuarios existentes</CardTitle>
+          <CardTitle className="text-base">{t("users.existing")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
+            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Correo</TableHead>
-                  <TableHead>Rol</TableHead>
+                  <TableHead>{t("common.name")}</TableHead>
+                  <TableHead>{t("users.email")}</TableHead>
+                  <TableHead>{t("users.role")}</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
@@ -223,9 +207,9 @@ function UsersPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="technician">
-                            {ROLE_LABELS.technician}
+                            {getRoleLabel("technician", t)}
                           </SelectItem>
-                          <SelectItem value="admin">{ROLE_LABELS.admin}</SelectItem>
+                          <SelectItem value="admin">{getRoleLabel("admin", t)}</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -234,7 +218,7 @@ function UsersPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => {
-                          if (confirm(`¿Eliminar a ${u.full_name}?`))
+                          if (confirm(t("users.deleteConfirm", { name: u.full_name })))
                             delMut.mutate(u.id);
                         }}
                       >

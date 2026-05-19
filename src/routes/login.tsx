@@ -1,5 +1,6 @@
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const search = Route.useSearch();
   const { loading: authLoading, session } = useAuth();
@@ -31,7 +33,7 @@ function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      toast.error("No se pudo iniciar sesión", { description: error.message });
+      toast.error(t("login.failed"), { description: error.message });
       return;
     }
     navigate({ to: search.redirect ?? "/dashboard" });
@@ -40,7 +42,7 @@ function LoginPage() {
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 text-sm text-muted-foreground">
-        Cargando…
+        {t("common.loading")}
       </div>
     );
   }
@@ -59,16 +61,16 @@ function LoginPage() {
             </div>
             <div>
               <CardTitle className="text-lg leading-tight">Digitron</CardTitle>
-              <CardDescription className="text-xs">Digitron · Servicio técnico</CardDescription>
+              <CardDescription className="text-xs">{t("login.tagline")}</CardDescription>
             </div>
           </div>
-          <CardTitle className="text-base">Iniciar sesión</CardTitle>
-          <CardDescription>Ingrese sus credenciales para continuar.</CardDescription>
+          <CardTitle className="text-base">{t("login.title")}</CardTitle>
+          <CardDescription>{t("login.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Correo electrónico</Label>
+              <Label htmlFor="email">{t("login.email")}</Label>
               <Input
                 id="email"
                 type="email"
@@ -79,7 +81,7 @@ function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
+              <Label htmlFor="password">{t("login.password")}</Label>
               <Input
                 id="password"
                 type="password"
@@ -90,11 +92,9 @@ function LoginPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Ingresando…" : "Ingresar"}
+              {loading ? t("login.signingIn") : t("login.signIn")}
             </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              Solo el administrador puede crear nuevas cuentas.
-            </p>
+            <p className="text-center text-xs text-muted-foreground">{t("login.adminOnly")}</p>
           </form>
         </CardContent>
       </Card>

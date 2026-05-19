@@ -1,14 +1,4 @@
-// Shared Digitron constants — Spanish labels for enums.
-export const STATUS_LABELS: Record<string, string> = {
-  received: "Recibido",
-  diagnosis: "En diagnóstico",
-  repair: "En reparación",
-  waiting_part: "En espera de repuesto",
-  ready: "Listo para entrega",
-  delivered: "Entregado",
-  closed: "Cerrado",
-  warranty: "Garantía",
-};
+import type { TFunction } from "i18next";
 
 export const STATUS_ORDER = [
   "received",
@@ -46,7 +36,10 @@ export const STATUS_TOKEN: Record<OrderStatus, string> = {
   warranty: "status-warranty",
 };
 
-export const ROLE_LABELS: Record<string, string> = {
-  admin: "Administrador",
-  technician: "Técnico",
-};
+export function getStatusLabel(status: OrderStatus | string, t: TFunction): string {
+  return t(`status.${status}`, { defaultValue: String(status) });
+}
+
+export function getRoleLabel(role: "admin" | "technician" | string, t: TFunction): string {
+  return t(`roles.${role}`, { defaultValue: String(role) });
+}

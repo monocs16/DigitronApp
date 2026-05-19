@@ -1,4 +1,5 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/")({
@@ -6,11 +7,12 @@ export const Route = createFileRoute("/")({
 });
 
 function IndexRedirect() {
+  const { t } = useTranslation();
   const { loading, session } = useAuth();
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Cargando…
+        {t("common.loading")}
       </div>
     );
   }
