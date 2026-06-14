@@ -54,7 +54,7 @@
 
 - [x] 5.1 `customers.functions.ts` (list/get/create/update) with zod + `requireSupabaseAuth`; extend `client-form-dialog` to full fields
 - [x] 5.2 `equipment.functions.ts` + extend `equipment-form-dialog` to full fields
-- [ ] 5.3 Equipment service-history-by-serial server function + UI lookup
+- [x] 5.3 Equipment service-history-by-serial server function + UI lookup
 - [ ] 5.4 Manual verification: create/edit customer & equipment as administrativo; confirm tecnico read-only
 
 ## 6. Parts inventory

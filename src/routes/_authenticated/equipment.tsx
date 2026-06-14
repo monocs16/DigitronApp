@@ -3,17 +3,27 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Pencil, ClipboardList } from "lucide-react";
+import { Plus, Pencil, ClipboardList, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { AsyncCardBody } from "@/components/async-card-body";
 import { DeleteConfirmButton } from "@/components/delete-confirm-button";
 import { EquipmentFormDialog } from "@/components/equipment-form-dialog";
+import { StageBadge } from "@/components/status-badge";
+import { type OrderStage } from "@/lib/digitron";
 
 export const Route = createFileRoute("/_authenticated/equipment")({
   component: EquipmentPage,
@@ -57,6 +67,24 @@ function EquipmentPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<EquipmentRow | null>(null);
 
+  const [serial, setSerial] = useState("");
+  const [searchedSerial, setSearchedSerial] = useState("");
+
+  const { data: history = [], isFetching: historyLoading } = useQuery({
+    queryKey: ["equipment-history", searchedSerial],
+    enabled: searchedSerial.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("equipment")
+        .select(
+          "id, type, brand, model, serial_number, customers(name), orders(id, order_number, stage, intake_at)",
+        )
+        .ilike("serial_number", `%${searchedSerial}%`);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const del = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("equipment").delete().eq("id", id);
@@ -84,6 +112,86 @@ function EquipmentPage() {
           </Button>
         )}
       </PageHeader>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("equipmentPage.historyLookup")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form
+            className="flex items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSearchedSerial(serial.trim());
+            }}
+          >
+            <div className="flex-1 space-y-2">
+              <label className="text-sm font-medium">{t("equipmentPage.serialNumber")}</label>
+              <Input
+                value={serial}
+                onChange={(e) => setSerial(e.target.value)}
+                placeholder={t("equipmentPage.serialLookupPlaceholder")}
+              />
+            </div>
+            <Button type="submit">
+              <Search className="mr-2 h-4 w-4" />
+              {t("common.search")}
+            </Button>
+          </form>
+
+          {searchedSerial && (
+            <AsyncCardBody
+              isLoading={historyLoading}
+              isEmpty={history.length === 0}
+              emptyMessage={t("equipmentPage.historyEmpty")}
+            >
+              <div className="space-y-4">
+                {history.map((eq) => (
+                  <div key={eq.id} className="rounded-md border p-3">
+                    <div className="mb-2 text-sm">
+                      <span className="font-medium">
+                        {eq.brand} {eq.model}
+                      </span>{" "}
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {eq.serial_number}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {eq.customers?.name ?? t("common.noData")}
+                      </span>
+                    </div>
+                    {eq.orders.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        {t("equipmentPage.noServiceOrders")}
+                      </p>
+                    ) : (
+                      <ul className="divide-y text-sm">
+                        {eq.orders.map((o) => (
+                          <li key={o.id} className="flex items-center justify-between py-1.5">
+                            <Link
+                              to="/orders/$orderId"
+                              params={{ orderId: o.id }}
+                              className="font-medium hover:underline"
+                            >
+                              {o.order_number}
+                            </Link>
+                            <span className="flex items-center gap-3">
+                              <StageBadge stage={o.stage as OrderStage} t={t} />
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(o.intake_at).toLocaleDateString()}
+                              </span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </AsyncCardBody>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -152,11 +260,7 @@ function EquipmentPage() {
         </CardContent>
       </Card>
 
-      <EquipmentFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        editing={editing}
-      />
+      <EquipmentFormDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} />
     </div>
   );
 }

@@ -157,6 +157,10 @@ export default {
     created: "Equipo creado",
     deleted: "Equipo eliminado",
     deleteTitle: "¿Eliminar equipo?",
+    historyLookup: "Historial por N° de serie",
+    serialLookupPlaceholder: "Ingrese el N° de serie…",
+    historyEmpty: "Sin equipos para ese N° de serie.",
+    noServiceOrders: "Sin órdenes de servicio.",
   },
   orders: {
     title: "Órdenes de servicio",

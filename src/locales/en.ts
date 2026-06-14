@@ -157,6 +157,10 @@ export default {
     created: "Equipment created",
     deleted: "Equipment deleted",
     deleteTitle: "Delete equipment?",
+    historyLookup: "History by serial number",
+    serialLookupPlaceholder: "Enter the serial number…",
+    historyEmpty: "No equipment for that serial number.",
+    noServiceOrders: "No service orders.",
   },
   orders: {
     title: "Service orders",
