@@ -59,8 +59,8 @@
 
 ## 6. Parts inventory
 
-- [ ] 6.1 `parts.functions.ts` (list/get/create/update, stock adjust) with audit on stock change
-- [ ] 6.2 New `inventory.tsx` route: parts table, create/edit dialog, low/out-of-stock flag
+- [x] 6.1 `parts.functions.ts` (list/get/create/update, stock adjust) with audit on stock change
+- [x] 6.2 New `inventory.tsx` route: parts table, create/edit dialog, low/out-of-stock flag
 - [ ] 6.3 Manual verification: CRUD as administrativo, read-only as tecnico, low-stock flag shows
 
 ## 7. Service order workflow
