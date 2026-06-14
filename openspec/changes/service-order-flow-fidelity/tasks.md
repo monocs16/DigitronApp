@@ -56,13 +56,13 @@
 
 ## 9. Review/Update tests (MANDATORY)
 
-- [ ] 9.1 No unit runner configured; record this and rely on `tsc`/`eslint` + manual/E2E (steps 10–12). If a runner is later added, add state-machine tests for the new ownership + decision routing
+- [x] 9.1 No unit runner configured; record this and rely on `tsc`/`eslint` + manual/E2E (steps 10–12). If a runner is later added, add state-machine tests for the new ownership + decision routing
 
 ## 10. Run checks + verify DB state + report (MANDATORY — AGENT MUST EXECUTE)
 
-- [ ] 10.1 Capture pre-test DB baseline (orders/parts counts) on local
-- [ ] 10.2 Run `tsc --noEmit` and `eslint` on changed files; record results
-- [ ] 10.3 Verify post-test DB state unchanged; create report `specs/service-order-flow-fidelity/reports/YYYY-MM-DD-step-10-checks-and-db-verification.md`
+- [x] 10.1 Capture pre-test DB baseline (orders/parts counts) on local
+- [x] 10.2 Run `tsc --noEmit` and `eslint` on changed files; record results
+- [x] 10.3 Verify post-test DB state unchanged; create report `specs/service-order-flow-fidelity/reports/YYYY-MM-DD-step-10-checks-and-db-verification.md`
 
 ## 11. Manual testing — server functions via curl (MANDATORY — AGENT MUST EXECUTE)
 
@@ -78,6 +78,6 @@
 
 ## 13. Implementation verification
 
-- [ ] 13.1 `opsx:verify` coherent (artifacts ↔ implementation)
-- [ ] 13.2 `tsc` = 0, `eslint` clean, es/en parity; all reports present
-- [ ] 13.3 Conventional commits per checkpoint; do not archive (left for a separate step)
+- [x] 13.1 `opsx:verify` coherent (artifacts ↔ implementation)
+- [x] 13.2 `tsc` = 0, `eslint` clean, es/en parity; all reports present
+- [x] 13.3 Conventional commits per checkpoint; do not archive (left for a separate step)
