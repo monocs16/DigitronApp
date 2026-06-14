@@ -66,15 +66,15 @@
 
 ## 11. Manual testing — server functions via curl (MANDATORY — AGENT MUST EXECUTE)
 
-- [ ] 11.1 Start `bun run dev:local`; authenticate to obtain a JWT for an admin and a tecnico
-- [ ] 11.2 Exercise `recordBudgetDecision` (approved/deferred/rejected), `notifyCustomer`, `deliverOrder`, `closeOrder`; verify status + state-machine gates + role denials
-- [ ] 11.3 Restore DB state; document commands/responses in a report under `reports/`
+- [x] 11.1 Start `bun run dev:local`; authenticate to obtain a JWT for an admin and a tecnico
+- [x] 11.2 Exercise `recordBudgetDecision` (approved/deferred/rejected), `notifyCustomer`, `deliverOrder`, `closeOrder`; verify status + state-machine gates + role denials
+- [x] 11.3 Restore DB state; document commands/responses in a report under `reports/`
 
 ## 12. E2E testing via browser MCP on dev:local (MANDATORY — AGENT MUST EXECUTE)
 
-- [ ] 12.1 `bun run dev:local:fresh`; seed admin; create administrativo + tecnico
-- [ ] 12.2 Walk an order through all paths (Approved, Deferred→hold→return, Rejected, Warranty) confirming guided UX, auto-routing, notify stamps + email-pending notice, origin, received_by/closing
-- [ ] 12.3 Confirm per-role inbox + that técnico only sees assigned orders; restore state; report under `reports/`
+- [x] 12.1 `bun run dev:local:fresh`; seed admin; create administrativo + tecnico
+- [x] 12.2 Walk an order through all paths (Approved, Deferred→hold→return, Rejected, Warranty) confirming guided UX, auto-routing, notify stamps + email-pending notice, origin, received_by/closing
+- [x] 12.3 Confirm per-role inbox + that técnico only sees assigned orders; restore state; report under `reports/`
 
 ## 13. Implementation verification
 
