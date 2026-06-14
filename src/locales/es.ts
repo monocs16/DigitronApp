@@ -291,6 +291,11 @@ export default {
     orders: "Órdenes",
     revenue: "Ingreso (₡)",
     generated: "Generado: {{date}}",
+    dateRange: "Rango de fechas",
+    partsConsumption: "Consumo de repuestos",
+    quantity: "Cantidad",
+    cost: "Costo",
+    warrantyOrders: "Órdenes de garantía ({{count}})",
   },
   inventory: {
     title: "Inventario",

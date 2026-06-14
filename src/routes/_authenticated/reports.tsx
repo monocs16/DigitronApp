@@ -1,13 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Download } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { canRead } from "@/lib/access";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -35,13 +40,21 @@ function exportPdf(title: string, generated: string, head: string[], rows: (stri
 
 function ReportsPage() {
   const { t } = useTranslation();
+  const { roles } = useAuth();
+  const mayView = canRead(roles, "reportes");
+
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders-reports"],
+    enabled: mayView,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, stage, technician_id, client_id, created_at, customers(name)");
+        .select(
+          "id, order_number, stage, technician_id, client_id, created_at, warranty_origin_id, customers(name)",
+        );
       if (error) throw error;
       return data;
     },
@@ -49,6 +62,7 @@ function ReportsPage() {
 
   const { data: payments = [] } = useQuery({
     queryKey: ["payments-reports"],
+    enabled: mayView,
     queryFn: async () => {
       const { data, error } = await supabase.from("payments").select("amount, paid_at");
       if (error) throw error;
@@ -58,8 +72,24 @@ function ReportsPage() {
 
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-all"],
+    enabled: mayView,
     queryFn: async () => {
       const { data, error } = await supabase.from("profiles").select("id, full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: usedParts = [] } = useQuery({
+    queryKey: ["used-parts-reports"],
+    enabled: mayView,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_parts")
+        .select(
+          "part_id, quantity, unit_cost_at_registration, created_at, parts(part_code, description)",
+        )
+        .eq("stage", "used");
       if (error) throw error;
       return data;
     },
@@ -68,13 +98,22 @@ function ReportsPage() {
   const nameById = new Map(profiles.map((p) => [p.id, p.full_name]));
   const generatedLine = t("reports.generated", { date: new Date().toLocaleString() });
 
+  const inRange = (date: string) => {
+    if (fromDate && new Date(date) < new Date(fromDate)) return false;
+    if (toDate && new Date(date) > new Date(toDate + "T23:59:59")) return false;
+    return true;
+  };
+  const rangedOrders = orders.filter((o) => inRange(o.created_at));
+  const rangedPayments = payments.filter((p) => inRange(p.paid_at));
+  const rangedUsedParts = usedParts.filter((p) => inRange(p.created_at));
+
   const byStage = STAGE_ORDER.map((s) => ({
     stage: s,
-    count: orders.filter((o) => o.stage === s).length,
+    count: rangedOrders.filter((o) => o.stage === s).length,
   }));
 
   const byTech = new Map<string | null, number>();
-  for (const o of orders) {
+  for (const o of rangedOrders) {
     if (["delivered", "closed"].includes(o.stage)) continue;
     byTech.set(o.technician_id, (byTech.get(o.technician_id) ?? 0) + 1);
   }
@@ -90,13 +129,13 @@ function ReportsPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   };
   const months = new Map<string, { count: number; revenue: number }>();
-  for (const o of orders) {
+  for (const o of rangedOrders) {
     const k = monthKey(o.created_at);
     const cur = months.get(k) ?? { count: 0, revenue: 0 };
     cur.count += 1;
     months.set(k, cur);
   }
-  for (const p of payments) {
+  for (const p of rangedPayments) {
     const k = monthKey(p.paid_at);
     const cur = months.get(k) ?? { count: 0, revenue: 0 };
     cur.revenue += Number(p.amount);
@@ -108,7 +147,7 @@ function ReportsPage() {
     .map(([k, v]) => ({ month: k, ...v }));
 
   const byClient = new Map<string, { name: string; count: number }>();
-  for (const o of orders) {
+  for (const o of rangedOrders) {
     if (!o.client_id) continue;
     const cur = byClient.get(o.client_id) ?? {
       name: o.customers?.name ?? t("common.noData"),
@@ -121,9 +160,56 @@ function ReportsPage() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
+  const partsMap = new Map<string, { label: string; qty: number; cost: number }>();
+  for (const p of rangedUsedParts) {
+    const cur = partsMap.get(p.part_id) ?? {
+      label: p.parts ? `${p.parts.part_code} — ${p.parts.description}` : t("common.noData"),
+      qty: 0,
+      cost: 0,
+    };
+    cur.qty += p.quantity;
+    cur.cost += Number(p.unit_cost_at_registration) * p.quantity;
+    partsMap.set(p.part_id, cur);
+  }
+  const partsConsumption = Array.from(partsMap.values()).sort((a, b) => b.qty - a.qty);
+
+  const warrantyOrders = rangedOrders.filter((o) => o.warranty_origin_id);
+
+  if (!mayView) return <Navigate to="/dashboard" replace />;
+
   return (
     <div className="space-y-6">
       <PageHeader title={t("reports.title")} subtitle={t("reports.subtitle")} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("reports.dateRange")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3 sm:items-end">
+            <div className="space-y-2">
+              <Label>{t("common.from")}</Label>
+              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("common.to")}</Label>
+              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            </div>
+            {(fromDate || toDate) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFromDate("");
+                  setToDate("");
+                }}
+              >
+                {t("orders.clearFilter")}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -291,6 +377,84 @@ function ReportsPage() {
                     <TableRow key={r.name}>
                       <TableCell>{r.name}</TableCell>
                       <TableCell className="text-right font-medium">{r.count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">{t("reports.partsConsumption")}</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={partsConsumption.length === 0}
+              onClick={() =>
+                exportPdf(
+                  t("reports.partsConsumption"),
+                  generatedLine,
+                  [t("inventory.description"), t("reports.quantity"), t("reports.cost")],
+                  partsConsumption.map((r) => [r.label, r.qty, r.cost.toFixed(2)]),
+                )
+              }
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {t("common.pdf")}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {partsConsumption.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("common.noResults")}</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("inventory.description")}</TableHead>
+                    <TableHead className="text-right">{t("reports.quantity")}</TableHead>
+                    <TableHead className="text-right">{t("reports.cost")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {partsConsumption.map((r) => (
+                    <TableRow key={r.label}>
+                      <TableCell>{r.label}</TableCell>
+                      <TableCell className="text-right font-medium">{r.qty}</TableCell>
+                      <TableCell className="text-right">{r.cost.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {t("reports.warrantyOrders", { count: warrantyOrders.length })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {warrantyOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("common.noResults")}</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("common.code")}</TableHead>
+                    <TableHead>{t("common.client")}</TableHead>
+                    <TableHead>{t("common.status")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {warrantyOrders.map((o) => (
+                    <TableRow key={o.id}>
+                      <TableCell className="font-medium">{o.order_number}</TableCell>
+                      <TableCell>{o.customers?.name ?? t("common.noData")}</TableCell>
+                      <TableCell>{getStageLabel(o.stage as OrderStage, t)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
