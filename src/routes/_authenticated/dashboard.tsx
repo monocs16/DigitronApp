@@ -6,8 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getStatusLabel, STATUS_ORDER, type OrderStatus } from "@/lib/digitron";
-import { StatusBadge } from "@/components/status-badge";
+import { STAGE_ORDER, type OrderStage } from "@/lib/digitron";
+import { StageBadge } from "@/components/status-badge";
 import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -18,7 +18,8 @@ const STALE_DAYS = 7;
 
 function DashboardPage() {
   const { t } = useTranslation();
-  const { profile } = useAuth();
+  const { profile, hasRole } = useAuth();
+  const canSeeAll = hasRole("super") || hasRole("administrativo");
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders-summary"],
@@ -26,7 +27,7 @@ function DashboardPage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, order_number, status, technician_id, part_waiting_for, created_at, updated_at, clients(name), equipment(brand, model)",
+          "id, order_number, stage, technician_id, created_at, updated_at, customers(name), equipment(brand, model)",
         )
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -34,18 +35,18 @@ function DashboardPage() {
     },
   });
 
-  const counts = STATUS_ORDER.reduce<Record<OrderStatus, number>>(
-    (acc, s) => ({ ...acc, [s]: orders.filter((o) => o.status === s).length }),
-    {} as Record<OrderStatus, number>,
+  const counts = STAGE_ORDER.reduce<Record<OrderStage, number>>(
+    (acc, s) => ({ ...acc, [s]: orders.filter((o) => o.stage === s).length }),
+    {} as Record<OrderStage, number>,
   );
 
-  const active = orders.filter((o) => !["delivered", "closed"].includes(o.status));
+  const active = orders.filter((o) => !["delivered", "closed"].includes(o.stage));
   const stale = active.filter((o) => {
     const updated = new Date(o.updated_at);
     return (Date.now() - updated.getTime()) / 86_400_000 > STALE_DAYS;
   });
   const mine = orders.filter(
-    (o) => o.technician_id === profile?.id && !["delivered", "closed"].includes(o.status),
+    (o) => o.technician_id === profile?.id && !["delivered", "closed"].includes(o.stage),
   );
 
   const summaryCards = [
@@ -58,7 +59,7 @@ function DashboardPage() {
     { label: t("dashboard.inRepair"), value: counts.repair, icon: Wrench, tone: "text-amber-500" },
     {
       label: t("dashboard.readyForDelivery"),
-      value: counts.ready,
+      value: counts.payment,
       icon: CheckCircle2,
       tone: "text-emerald-500",
     },
@@ -112,7 +113,7 @@ function DashboardPage() {
                     >
                       {o.order_number}
                     </Link>
-                    <StatusBadge status={o.status} t={t} />
+                    <StageBadge stage={o.stage} t={t} />
                   </li>
                 ))}
               </ul>
@@ -123,15 +124,15 @@ function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              {profile?.role === "admin" ? t("dashboard.recent") : t("dashboard.assignedToYou")}
+              {canSeeAll ? t("dashboard.recent") : t("dashboard.assignedToYou")}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {(profile?.role === "admin" ? orders : mine).length === 0 ? (
+            {(canSeeAll ? orders : mine).length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("dashboard.nothingHere")}</p>
             ) : (
               <ul className="divide-y">
-                {(profile?.role === "admin" ? orders : mine).slice(0, 6).map((o) => (
+                {(canSeeAll ? orders : mine).slice(0, 6).map((o) => (
                   <li key={o.id} className="py-2 flex items-center justify-between gap-2 text-sm">
                     <div className="min-w-0">
                       <Link
@@ -142,16 +143,16 @@ function DashboardPage() {
                         {o.order_number}
                       </Link>
                       <p className="text-xs text-muted-foreground truncate">
-                        {o.clients?.name} · {o.equipment?.brand} {o.equipment?.model}
+                        {o.customers?.name} · {o.equipment?.brand} {o.equipment?.model}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {o.part_waiting_for && (
+                      {o.stage === "on_hold" && (
                         <Badge variant="destructive" className="text-xs">
                           {t("dashboard.partBadge")}
                         </Badge>
                       )}
-                      <StatusBadge status={o.status} t={t} />
+                      <StageBadge stage={o.stage} t={t} />
                     </div>
                   </li>
                 ))}

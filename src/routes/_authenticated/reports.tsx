@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getStatusLabel, STATUS_ORDER, type OrderStatus } from "@/lib/digitron";
+import { getStageLabel, STAGE_ORDER, type OrderStage } from "@/lib/digitron";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   component: ReportsPage,
@@ -41,7 +41,16 @@ function ReportsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, status, technician_id, client_id, created_at, final_cost, clients(name)");
+        .select("id, stage, technician_id, client_id, created_at, customers(name)");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: payments = [] } = useQuery({
+    queryKey: ["payments-reports"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("payments").select("amount, paid_at");
       if (error) throw error;
       return data;
     },
@@ -59,14 +68,14 @@ function ReportsPage() {
   const nameById = new Map(profiles.map((p) => [p.id, p.full_name]));
   const generatedLine = t("reports.generated", { date: new Date().toLocaleString() });
 
-  const byStatus = STATUS_ORDER.map((s) => ({
-    status: s,
-    count: orders.filter((o) => o.status === s).length,
+  const byStage = STAGE_ORDER.map((s) => ({
+    stage: s,
+    count: orders.filter((o) => o.stage === s).length,
   }));
 
   const byTech = new Map<string | null, number>();
   for (const o of orders) {
-    if (["delivered", "closed"].includes(o.status)) continue;
+    if (["delivered", "closed"].includes(o.stage)) continue;
     byTech.set(o.technician_id, (byTech.get(o.technician_id) ?? 0) + 1);
   }
   const techRows = Array.from(byTech.entries())
@@ -76,13 +85,21 @@ function ReportsPage() {
     }))
     .sort((a, b) => b.count - a.count);
 
+  const monthKey = (date: string) => {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
   const months = new Map<string, { count: number; revenue: number }>();
   for (const o of orders) {
-    const d = new Date(o.created_at);
-    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const k = monthKey(o.created_at);
     const cur = months.get(k) ?? { count: 0, revenue: 0 };
     cur.count += 1;
-    if (o.final_cost) cur.revenue += Number(o.final_cost);
+    months.set(k, cur);
+  }
+  for (const p of payments) {
+    const k = monthKey(p.paid_at);
+    const cur = months.get(k) ?? { count: 0, revenue: 0 };
+    cur.revenue += Number(p.amount);
     months.set(k, cur);
   }
   const monthRows = Array.from(months.entries())
@@ -94,7 +111,7 @@ function ReportsPage() {
   for (const o of orders) {
     if (!o.client_id) continue;
     const cur = byClient.get(o.client_id) ?? {
-      name: o.clients?.name ?? t("common.noData"),
+      name: o.customers?.name ?? t("common.noData"),
       count: 0,
     };
     cur.count += 1;
@@ -120,7 +137,7 @@ function ReportsPage() {
                   t("reports.byStatus"),
                   generatedLine,
                   [t("common.status"), t("common.total")],
-                  byStatus.map((r) => [getStatusLabel(r.status as OrderStatus, t), r.count]),
+                  byStage.map((r) => [getStageLabel(r.stage as OrderStage, t), r.count]),
                 )
               }
             >
@@ -137,9 +154,9 @@ function ReportsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {byStatus.map((r) => (
-                  <TableRow key={r.status}>
-                    <TableCell>{getStatusLabel(r.status as OrderStatus, t)}</TableCell>
+                {byStage.map((r) => (
+                  <TableRow key={r.stage}>
+                    <TableCell>{getStageLabel(r.stage as OrderStage, t)}</TableCell>
                     <TableCell className="text-right font-medium">{r.count}</TableCell>
                   </TableRow>
                 ))}
