@@ -18,8 +18,10 @@ export const STAGE_TRANSITIONS: Record<OrderStage, OrderStage[]> = {
 // Which roles may move an order INTO a given target stage. `super` is always allowed.
 export const STAGE_ACTOR_ROLES: Record<OrderStage, AppRole[]> = {
   intake: ["administrativo"],
-  evaluation: ["administrativo", "tecnico"],
-  budget: ["administrativo"],
+  // Admin completes intake and hands the order to the technician.
+  evaluation: ["administrativo"],
+  // Technician completes the evaluation and advances it to budget.
+  budget: ["administrativo", "tecnico"],
   customer_decision: ["administrativo"],
   on_hold: ["administrativo"],
   repair: ["administrativo"],

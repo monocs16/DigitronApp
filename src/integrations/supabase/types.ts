@@ -335,7 +335,9 @@ export type Database = {
           closing_notes: string | null
           created_at: string
           created_by: string | null
+          decision_notified_at: string | null
           delivery_at: string | null
+          delivery_notified_at: string | null
           equipment_id: string
           general_notes: string | null
           id: string
@@ -356,7 +358,9 @@ export type Database = {
           closing_notes?: string | null
           created_at?: string
           created_by?: string | null
+          decision_notified_at?: string | null
           delivery_at?: string | null
+          delivery_notified_at?: string | null
           equipment_id: string
           general_notes?: string | null
           id?: string
@@ -377,7 +381,9 @@ export type Database = {
           closing_notes?: string | null
           created_at?: string
           created_by?: string | null
+          decision_notified_at?: string | null
           delivery_at?: string | null
+          delivery_notified_at?: string | null
           equipment_id?: string
           general_notes?: string | null
           id?: string
