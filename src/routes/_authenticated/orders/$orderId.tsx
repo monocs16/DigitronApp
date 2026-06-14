@@ -11,7 +11,6 @@ import { useAuth } from "@/hooks/use-auth";
 import i18n from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,21 +22,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getStatusLabel, type OrderStatus } from "@/lib/digitron";
-import { StatusBadge } from "@/components/status-badge";
-import { allowedNextStatuses } from "@/lib/state-machine";
+import { getStageLabel, getDecisionLabel, type OrderStage } from "@/lib/digitron";
+import { StageBadge } from "@/components/status-badge";
+import { allowedNextStages, type TransitionContext } from "@/lib/state-machine";
 
 export const Route = createFileRoute("/_authenticated/orders/$orderId")({
   component: OrderDetailPage,
 });
 
 const MAX_PHOTOS = 5;
+const PAYMENT_METHODS = ["cash", "card", "transfer"] as const;
 
 function OrderDetailPage() {
   const { t } = useTranslation();
   const { orderId } = useParams({ from: "/_authenticated/orders/$orderId" });
-  const { profile } = useAuth();
+  const { profile, roles } = useAuth();
   const qc = useQueryClient();
+
+  const isSuper = roles.includes("super");
+  const isAdministrativo = roles.includes("administrativo");
+  const isTecnico = roles.includes("tecnico");
 
   const { data: order, isLoading } = useQuery({
     queryKey: ["order", orderId],
@@ -46,7 +50,7 @@ function OrderDetailPage() {
         .from("orders")
         .select(
           `
-          *, clients(id, name, phone, email),
+          *, customers(id, name, phone1, email),
           equipment(id, type, brand, model, serial_number)
         `,
         )
@@ -57,16 +61,78 @@ function OrderDetailPage() {
     },
   });
 
-  const { data: techs = [] } = useTechnicians({ includeRole: true });
+  const { data: evaluation } = useQuery({
+    queryKey: ["evaluation", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("technical_evaluations")
+        .select("*")
+        .eq("order_id", orderId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: budget } = useQuery({
+    queryKey: ["budget", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("budgets")
+        .select("*")
+        .eq("order_id", orderId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: repair } = useQuery({
+    queryKey: ["repair", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("repairs")
+        .select("*")
+        .eq("order_id", orderId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: payments = [] } = useQuery({
+    queryKey: ["payments", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("id, amount, method, reference, paid_at, registered_by")
+        .eq("order_id", orderId)
+        .order("paid_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: techs = [] } = useTechnicians({ includeRoles: true });
+
+  const { data: people = [] } = useQuery({
+    queryKey: ["profiles-min"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: audit = [] } = useQuery({
     queryKey: ["audit", orderId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("audit_log")
-        .select("id, action, field_changed, old_value, new_value, created_at, user_id")
-        .eq("order_id", orderId)
-        .order("created_at", { ascending: false });
+        .select("id, operation, change_ts, app_user, changed_fields, full_row_old")
+        .eq("table_name", "orders")
+        .filter("record_pk->>id", "eq", orderId)
+        .order("change_ts", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -92,65 +158,91 @@ function OrderDetailPage() {
     },
   });
 
-  const profileById = new Map(techs.map((tech) => [tech.id, tech.full_name]));
+  const nameById = new Map(people.map((p) => [p.id, p.full_name]));
 
-  const isAdmin = profile?.role === "admin";
   const isAssigned = !!order && order.technician_id === profile?.id;
 
-  const nextStatuses = order
-    ? allowedNextStatuses(order.status as OrderStatus, profile?.role ?? "technician", isAssigned)
-    : [];
+  // Budget totals and gates.
+  const budgetTotal = budget
+    ? budget.labor_cost + budget.parts_cost + budget.freight_cost + budget.other_charges
+    : 0;
+  const paidTotal = payments.reduce((s, p) => s + Number(p.amount), 0) + (budget?.advances ?? 0);
+  const balance = budgetTotal - paidTotal;
+  const balanceSettled = !!order?.balance_waived || balance <= 0;
+  const budgetApproved = budget?.decision === "approved";
 
-  const updateStatus = useMutation({
-    mutationFn: async (newStatus: OrderStatus) => {
-      const patch =
-        newStatus === "waiting_part"
-          ? { status: newStatus }
-          : { status: newStatus, part_waiting_for: null };
-      const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success(t("orders.statusUpdated"));
-      qc.invalidateQueries({ queryKey: ["order", orderId] });
-      qc.invalidateQueries({ queryKey: ["audit", orderId] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  // Role-based edit gates (mirrors MODULE_MATRIX).
+  const canEditEvaluation = isSuper || (isTecnico && isAssigned);
+  const canEditBudget = isSuper || isAdministrativo;
+  const canEditRepair = isSuper || (isTecnico && isAssigned);
+  const canEditPayments = isSuper || isAdministrativo;
+  const canAssignTech = isSuper || isAdministrativo;
+  const canEditNotes = isSuper || isAdministrativo || isAssigned;
 
-  const [partWaiting, setPartWaiting] = useState("");
-  const [notes, setNotes] = useState("");
-  const [estimated, setEstimated] = useState("");
-  const [finalCost, setFinalCost] = useState("");
+  const ctx: TransitionContext = {
+    roles,
+    isAssignedTechnician: isAssigned,
+    budgetApproved,
+    balanceSettled,
+  };
+  const nextStages = order ? allowedNextStages(order.stage as OrderStage, ctx) : [];
+
+  // ---- Local form state, hydrated from loaded data ----
+  const [diagnosis, setDiagnosis] = useState("");
+  const [evalNotes, setEvalNotes] = useState("");
+  const [laborCost, setLaborCost] = useState("");
+  const [partsCost, setPartsCost] = useState("");
+  const [freightCost, setFreightCost] = useState("");
+  const [otherCharges, setOtherCharges] = useState("");
+  const [advances, setAdvances] = useState("");
+  const [deferredReason, setDeferredReason] = useState("");
+  const [customerComments, setCustomerComments] = useState("");
+  const [workDescription, setWorkDescription] = useState("");
+  const [generalNotes, setGeneralNotes] = useState("");
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState<string>("cash");
+  const [payReference, setPayReference] = useState("");
   const [technicianAssign, setTechnicianAssign] = useState<string>("none");
 
   useEffect(() => {
     if (order) {
-      setPartWaiting(order.part_waiting_for ?? "");
-      setNotes(order.notes ?? "");
-      setEstimated(order.estimated_cost?.toString() ?? "");
-      setFinalCost(order.final_cost?.toString() ?? "");
+      setGeneralNotes(order.general_notes ?? "");
       setTechnicianAssign(order.technician_id ?? "none");
     }
   }, [order]);
+  useEffect(() => {
+    setDiagnosis(evaluation?.diagnosis ?? "");
+    setEvalNotes(evaluation?.technical_notes ?? "");
+  }, [evaluation]);
+  useEffect(() => {
+    if (budget) {
+      setLaborCost(String(budget.labor_cost));
+      setPartsCost(String(budget.parts_cost));
+      setFreightCost(String(budget.freight_cost));
+      setOtherCharges(String(budget.other_charges));
+      setAdvances(String(budget.advances));
+      setDeferredReason(budget.deferred_reason ?? "");
+      setCustomerComments(budget.customer_comments ?? "");
+    }
+  }, [budget]);
+  useEffect(() => {
+    setWorkDescription(repair?.work_description ?? "");
+  }, [repair]);
 
-  const saveDetails = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          part_waiting_for: partWaiting || null,
-          notes: notes || null,
-          estimated_cost: estimated ? Number(estimated) : null,
-          final_cost: finalCost ? Number(finalCost) : null,
-        })
-        .eq("id", orderId);
+  const invalidate = (...keys: string[]) => {
+    qc.invalidateQueries({ queryKey: ["audit", orderId] });
+    for (const k of keys) qc.invalidateQueries({ queryKey: [k, orderId] });
+  };
+
+  // ---- Mutations ----
+  const changeStage = useMutation({
+    mutationFn: async (next: OrderStage) => {
+      const { error } = await supabase.from("orders").update({ stage: next }).eq("id", orderId);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(t("orders.changesSaved"));
-      qc.invalidateQueries({ queryKey: ["order", orderId] });
-      qc.invalidateQueries({ queryKey: ["audit", orderId] });
+      toast.success(t("orders.stageUpdated"));
+      invalidate("order");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -165,8 +257,141 @@ function OrderDetailPage() {
     },
     onSuccess: () => {
       toast.success(t("orders.technicianUpdated"));
-      qc.invalidateQueries({ queryKey: ["order", orderId] });
-      qc.invalidateQueries({ queryKey: ["audit", orderId] });
+      invalidate("order");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const saveNotes = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("orders")
+        .update({ general_notes: generalNotes || null })
+        .eq("id", orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("orders.changesSaved"));
+      invalidate("order");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const saveEvaluation = useMutation({
+    mutationFn: async () => {
+      if (!diagnosis.trim()) throw new Error(i18n.t("orders.diagnosisRequired"));
+      const payload = {
+        order_id: orderId,
+        diagnosis: diagnosis.trim(),
+        technical_notes: evalNotes || null,
+        technician_id: profile?.id ?? null,
+      };
+      const { error } = evaluation
+        ? await supabase.from("technical_evaluations").update(payload).eq("id", evaluation.id)
+        : await supabase.from("technical_evaluations").insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("orders.evaluationSaved"));
+      invalidate("evaluation");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const saveBudget = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        order_id: orderId,
+        labor_cost: Number(laborCost) || 0,
+        parts_cost: Number(partsCost) || 0,
+        freight_cost: Number(freightCost) || 0,
+        other_charges: Number(otherCharges) || 0,
+        advances: Number(advances) || 0,
+        deferred_reason: deferredReason || null,
+        customer_comments: customerComments || null,
+      };
+      const { error } = budget
+        ? await supabase.from("budgets").update(payload).eq("id", budget.id)
+        : await supabase.from("budgets").insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("orders.budgetSaved"));
+      invalidate("budget");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const decideBudget = useMutation({
+    mutationFn: async (decision: "approved" | "deferred" | "rejected") => {
+      if (!budget) throw new Error(i18n.t("orders.budgetFirst"));
+      const { error } = await supabase
+        .from("budgets")
+        .update({ decision, decided_at: new Date().toISOString() })
+        .eq("id", budget.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("orders.budgetSaved"));
+      invalidate("budget");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const saveRepair = useMutation({
+    mutationFn: async (patch: { state?: string; stamp?: "started_at" | "finished_at" }) => {
+      const payload = {
+        order_id: orderId,
+        work_description: workDescription || null,
+        technician_id: profile?.id ?? null,
+        ...(patch.state ? { state: patch.state } : {}),
+        ...(patch.stamp ? { [patch.stamp]: new Date().toISOString() } : {}),
+      };
+      const { error } = repair
+        ? await supabase.from("repairs").update(payload).eq("id", repair.id)
+        : await supabase.from("repairs").insert({ state: "in_progress", ...payload });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("orders.repairSaved"));
+      invalidate("repair");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const addPayment = useMutation({
+    mutationFn: async () => {
+      const amount = Number(payAmount);
+      if (!amount || amount <= 0) throw new Error(i18n.t("orders.invalidAmount"));
+      const { error } = await supabase.from("payments").insert({
+        order_id: orderId,
+        amount,
+        method: payMethod,
+        reference: payReference || null,
+        registered_by: profile?.id ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("orders.paymentAdded"));
+      setPayAmount("");
+      setPayReference("");
+      invalidate("payments");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const waiveBalance = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("orders")
+        .update({ balance_waived: true })
+        .eq("id", orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("orders.changesSaved"));
+      invalidate("order");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -213,21 +438,20 @@ function OrderDetailPage() {
   if (isLoading) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
   if (!order) return <p className="text-sm text-muted-foreground">{t("orders.notFound")}</p>;
 
-  const canEditCore =
-    isAdmin || (isAssigned && !["delivered", "closed", "warranty"].includes(order.status));
+  const money = (n: number) => n.toFixed(2);
 
   const auditLabel = (a: (typeof audit)[number]) => {
-    if (a.action === "created") return t("orders.orderCreated");
-    if (a.action === "status_changed") {
+    if (a.operation === "INSERT") return t("orders.orderCreated");
+    const changed = (a.changed_fields ?? {}) as Record<string, unknown>;
+    if ("stage" in changed) {
+      const oldRow = (a.full_row_old ?? {}) as Record<string, unknown>;
       return t("orders.statusChanged", {
-        from: getStatusLabel(a.old_value as OrderStatus, t) || a.old_value,
-        to: getStatusLabel(a.new_value as OrderStatus, t) || a.new_value,
+        from: getStageLabel(String(oldRow.stage ?? ""), t),
+        to: getStageLabel(String(changed.stage ?? ""), t),
       });
     }
-    if (a.action === "field_changed") {
-      return t("orders.fieldChanged", { field: a.field_changed });
-    }
-    return a.action;
+    const keys = Object.keys(changed).filter((k) => k !== "updated_at");
+    return t("orders.fieldChanged", { field: keys.join(", ") || a.operation });
   };
 
   return (
@@ -245,11 +469,12 @@ function OrderDetailPage() {
         title={order.order_number}
         subtitle={t("orders.createdAt", { date: new Date(order.created_at).toLocaleString() })}
       >
-        <StatusBadge status={order.status} t={t} />
+        <StageBadge stage={order.stage} t={t} />
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {/* Summary */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t("orders.clientAndEquipment")}</CardTitle>
@@ -257,9 +482,9 @@ function OrderDetailPage() {
             <CardContent className="grid gap-4 sm:grid-cols-2 text-sm">
               <div>
                 <p className="text-xs uppercase text-muted-foreground">{t("common.client")}</p>
-                <p className="font-medium">{order.clients?.name}</p>
-                <p className="text-muted-foreground">{order.clients?.phone}</p>
-                <p className="text-muted-foreground">{order.clients?.email}</p>
+                <p className="font-medium">{order.customers?.name}</p>
+                <p className="text-muted-foreground">{order.customers?.phone1}</p>
+                <p className="text-muted-foreground">{order.customers?.email}</p>
               </div>
               <div>
                 <p className="text-xs uppercase text-muted-foreground">{t("common.equipment")}</p>
@@ -275,71 +500,285 @@ function OrderDetailPage() {
                 <p className="text-xs uppercase text-muted-foreground">
                   {t("orders.reportedProblem")}
                 </p>
-                <p className="whitespace-pre-wrap">{order.problem_description}</p>
+                <p className="whitespace-pre-wrap">{order.reported_fault}</p>
               </div>
             </CardContent>
           </Card>
 
+          {/* Evaluation */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t("orders.editableDetails")}</CardTitle>
+              <CardTitle className="text-base">{t("orders.evaluation")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>{t("orders.diagnosis")}</Label>
+                <Textarea
+                  rows={3}
+                  value={diagnosis}
+                  onChange={(e) => setDiagnosis(e.target.value)}
+                  disabled={!canEditEvaluation}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("orders.technicalNotes")}</Label>
+                <Textarea
+                  rows={3}
+                  value={evalNotes}
+                  onChange={(e) => setEvalNotes(e.target.value)}
+                  disabled={!canEditEvaluation}
+                />
+              </div>
+              {canEditEvaluation && (
+                <div className="flex justify-end">
+                  <Button
+                    onClick={() => saveEvaluation.mutate()}
+                    disabled={saveEvaluation.isPending}
+                  >
+                    {t("orders.saveEvaluation")}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Budget */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t("orders.budget")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{t("orders.estimatedCost")}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={estimated}
-                    onChange={(e) => setEstimated(e.target.value)}
-                    disabled={!canEditCore}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("orders.finalCost")}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={finalCost}
-                    onChange={(e) => setFinalCost(e.target.value)}
-                    disabled={!isAdmin}
-                  />
-                </div>
+                {(
+                  [
+                    ["orders.laborCost", laborCost, setLaborCost],
+                    ["orders.partsCost", partsCost, setPartsCost],
+                    ["orders.freightCost", freightCost, setFreightCost],
+                    ["orders.otherCharges", otherCharges, setOtherCharges],
+                    ["orders.advances", advances, setAdvances],
+                  ] as const
+                ).map(([key, val, setter]) => (
+                  <div key={key} className="space-y-2">
+                    <Label>{t(key)}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={val}
+                      onChange={(e) => setter(e.target.value)}
+                      disabled={!canEditBudget}
+                    />
+                  </div>
+                ))}
               </div>
-              {order.status === "waiting_part" && (
+              <div className="space-y-2">
+                <Label>{t("orders.customerComments")}</Label>
+                <Textarea
+                  rows={2}
+                  value={customerComments}
+                  onChange={(e) => setCustomerComments(e.target.value)}
+                  disabled={!canEditBudget}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">{t("orders.total")}</span>
+                <span className="font-semibold">{money(budgetTotal)}</span>
+              </div>
+              {canEditBudget && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">{t("orders.decision")}:</span>
+                    <span className="font-medium">
+                      {budget?.decision ? getDecisionLabel(budget.decision, t) : t("common.noData")}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={() => saveBudget.mutate()} disabled={saveBudget.isPending}>
+                      {t("orders.saveBudget")}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {canEditBudget && budget && (
+                <div className="flex flex-wrap gap-2">
+                  {(["approved", "deferred", "rejected"] as const).map((d) => (
+                    <Button
+                      key={d}
+                      variant={budget.decision === d ? "default" : "outline"}
+                      size="sm"
+                      disabled={decideBudget.isPending}
+                      onClick={() => decideBudget.mutate(d)}
+                    >
+                      {getDecisionLabel(d, t)}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              {budget?.decision === "deferred" && (
                 <div className="space-y-2">
-                  <Label>{t("orders.pendingPart")}</Label>
+                  <Label>{t("orders.deferredReason")}</Label>
                   <Input
-                    value={partWaiting}
-                    onChange={(e) => setPartWaiting(e.target.value)}
-                    placeholder={t("orders.partPlaceholder")}
-                    disabled={!canEditCore}
+                    value={deferredReason}
+                    onChange={(e) => setDeferredReason(e.target.value)}
+                    disabled={!canEditBudget}
                   />
                 </div>
               )}
-              <div className="space-y-2">
-                <Label>{t("orders.internalNotes")}</Label>
-                <Textarea
-                  rows={4}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  disabled={!canEditCore}
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => saveDetails.mutate()}
-                  disabled={!canEditCore || saveDetails.isPending}
-                >
-                  {t("orders.saveChanges")}
-                </Button>
-              </div>
             </CardContent>
           </Card>
 
+          {/* Repair */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t("orders.repair")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>{t("orders.workDescription")}</Label>
+                <Textarea
+                  rows={3}
+                  value={workDescription}
+                  onChange={(e) => setWorkDescription(e.target.value)}
+                  disabled={!canEditRepair}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                {repair?.started_at && (
+                  <span>
+                    {t("orders.started")}: {new Date(repair.started_at).toLocaleString()}
+                  </span>
+                )}
+                {repair?.finished_at && (
+                  <span>
+                    {t("orders.finished")}: {new Date(repair.finished_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              {canEditRepair && (
+                <div className="flex flex-wrap justify-end gap-2">
+                  {!repair?.started_at && (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        saveRepair.mutate({ state: "in_progress", stamp: "started_at" })
+                      }
+                      disabled={saveRepair.isPending}
+                    >
+                      {t("orders.startRepair")}
+                    </Button>
+                  )}
+                  {repair?.started_at && !repair?.finished_at && (
+                    <Button
+                      variant="outline"
+                      onClick={() => saveRepair.mutate({ state: "done", stamp: "finished_at" })}
+                      disabled={saveRepair.isPending}
+                    >
+                      {t("orders.finishRepair")}
+                    </Button>
+                  )}
+                  <Button onClick={() => saveRepair.mutate({})} disabled={saveRepair.isPending}>
+                    {t("orders.saveRepair")}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Payments */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t("orders.payments")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-3 text-sm">
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t("orders.total")}</p>
+                  <p className="font-semibold">{money(budgetTotal)}</p>
+                </div>
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t("orders.totalPaid")}</p>
+                  <p className="font-semibold">{money(paidTotal)}</p>
+                </div>
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{t("orders.balance")}</p>
+                  <p className="font-semibold">{money(balance)}</p>
+                </div>
+              </div>
+
+              {payments.length > 0 && (
+                <ul className="divide-y text-sm">
+                  {payments.map((p) => (
+                    <li key={p.id} className="flex items-center justify-between py-2">
+                      <span>
+                        {money(Number(p.amount))} · {t(`orders.method_${p.method}`, p.method)}
+                        {p.reference ? ` · ${p.reference}` : ""}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(p.paid_at).toLocaleDateString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {canEditPayments && (
+                <>
+                  <Separator />
+                  <div className="grid gap-2 sm:grid-cols-4 sm:items-end">
+                    <div className="space-y-2">
+                      <Label>{t("orders.amount")}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={payAmount}
+                        onChange={(e) => setPayAmount(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t("orders.method")}</Label>
+                      <Select value={payMethod} onValueChange={setPayMethod}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_METHODS.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {t(`orders.method_${m}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t("orders.reference")}</Label>
+                      <Input
+                        value={payReference}
+                        onChange={(e) => setPayReference(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={() => addPayment.mutate()} disabled={addPayment.isPending}>
+                      {t("orders.addPayment")}
+                    </Button>
+                  </div>
+                  {!balanceSettled && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => waiveBalance.mutate()}
+                        disabled={waiveBalance.isPending}
+                      >
+                        {t("orders.waiveBalance")}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Photos */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
@@ -403,6 +842,7 @@ function OrderDetailPage() {
           </Card>
         </div>
 
+        {/* Sidebar: actions + notes + history */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -410,27 +850,27 @@ function OrderDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>{t("orders.changeStatus")}</Label>
-                {nextStatuses.length === 0 ? (
+                <Label>{t("orders.changeStage")}</Label>
+                {nextStages.length === 0 ? (
                   <p className="text-xs text-muted-foreground">{t("orders.noTransitions")}</p>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {nextStatuses.map((s) => (
+                    {nextStages.map((s) => (
                       <Button
                         key={s}
                         variant="outline"
                         size="sm"
-                        disabled={updateStatus.isPending}
-                        onClick={() => updateStatus.mutate(s)}
+                        disabled={changeStage.isPending}
+                        onClick={() => changeStage.mutate(s)}
                       >
-                        → {getStatusLabel(s, t)}
+                        → {getStageLabel(s, t)}
                       </Button>
                     ))}
                   </div>
                 )}
               </div>
 
-              {isAdmin && (
+              {canAssignTech && (
                 <>
                   <Separator />
                   <div className="space-y-2">
@@ -462,6 +902,31 @@ function OrderDetailPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle className="text-base">{t("orders.internalNotes")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Textarea
+                rows={4}
+                value={generalNotes}
+                onChange={(e) => setGeneralNotes(e.target.value)}
+                disabled={!canEditNotes}
+              />
+              {canEditNotes && (
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => saveNotes.mutate()}
+                    disabled={saveNotes.isPending}
+                  >
+                    {t("orders.saveChanges")}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-base">{t("orders.history")}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -472,14 +937,9 @@ function OrderDetailPage() {
                   {audit.map((a) => (
                     <li key={a.id} className="border-l-2 border-border pl-3 text-sm">
                       <p className="font-medium">{auditLabel(a)}</p>
-                      {a.action === "field_changed" && (
-                        <p className="text-xs text-muted-foreground">
-                          {a.old_value ?? t("common.noData")} → {a.new_value ?? t("common.noData")}
-                        </p>
-                      )}
                       <p className="text-xs text-muted-foreground">
-                        {new Date(a.created_at).toLocaleString()}
-                        {a.user_id && ` · ${profileById.get(a.user_id) ?? t("common.noData")}`}
+                        {new Date(a.change_ts).toLocaleString()}
+                        {a.app_user && ` · ${nameById.get(a.app_user) ?? t("common.noData")}`}
                       </p>
                     </li>
                   ))}
