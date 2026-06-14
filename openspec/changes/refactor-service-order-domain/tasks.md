@@ -92,7 +92,7 @@
 
 ## 11. Payments
 
-- [ ] 11.1 `payments.functions.ts` (create/list) + order balance computation (budget total − payments)
+- [x] 11.1 `payments.functions.ts` (create/list) + order balance computation (budget total − payments)
 - [x] 11.2 Payments section UI: register payment, show total paid / outstanding; delivery gate on balance with super/administrativo waiver
 - [ ] 11.3 Manual verification: register partial + full payment; delivery blocked until settled or waived
 
