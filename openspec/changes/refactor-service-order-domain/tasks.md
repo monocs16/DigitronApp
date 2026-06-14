@@ -80,8 +80,8 @@
 
 ## 9. Budget & approval
 
-- [ ] 9.1 `budgets.functions.ts` (create/update, record decision) with parts_cost defaulting to quoted-lines sum; deferred requires reason
-- [ ] 9.2 Budget section UI: cost breakdown form + customer decision capture; printable quote via existing `jspdf` path
+- [x] 9.1 `budgets.functions.ts` (create/update, record decision) with parts_cost defaulting to quoted-lines sum; deferred requires reason
+- [x] 9.2 Budget section UI: cost breakdown form + customer decision capture; printable quote via existing `jspdf` path
 - [ ] 9.3 Manual verification: generate budget, record each decision type, confirm repair gate blocks until Approved
 
 ## 10. Repair execution

@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/page-header";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeft, Upload, Trash2, ImageIcon } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import i18n from "@/lib/i18n";
@@ -273,6 +275,10 @@ function OrderDetailPage() {
   useEffect(() => {
     setWorkDescription(repair?.work_description ?? "");
   }, [repair]);
+  // Before a budget exists, default parts cost to the quoted lines sum.
+  useEffect(() => {
+    if (!budget && quotedPartsTotal > 0) setPartsCost(String(quotedPartsTotal));
+  }, [budget, quotedPartsTotal]);
 
   const invalidate = (...keys: string[]) => {
     qc.invalidateQueries({ queryKey: ["audit", orderId] });
@@ -378,9 +384,16 @@ function OrderDetailPage() {
   const decideBudget = useMutation({
     mutationFn: async (decision: "approved" | "deferred" | "rejected") => {
       if (!budget) throw new Error(i18n.t("orders.budgetFirst"));
+      if (decision === "deferred" && !deferredReason.trim()) {
+        throw new Error(i18n.t("orders.deferredReasonRequired"));
+      }
       const { error } = await supabase
         .from("budgets")
-        .update({ decision, decided_at: new Date().toISOString() })
+        .update({
+          decision,
+          decided_at: new Date().toISOString(),
+          deferred_reason: decision === "deferred" ? deferredReason.trim() : null,
+        })
         .eq("id", budget.id);
       if (error) throw error;
     },
@@ -526,6 +539,36 @@ function OrderDetailPage() {
   if (!order) return <p className="text-sm text-muted-foreground">{t("orders.notFound")}</p>;
 
   const money = (n: number) => n.toFixed(2);
+
+  const downloadQuote = () => {
+    const labor = Number(laborCost) || 0;
+    const parts = Number(partsCost) || 0;
+    const freight = Number(freightCost) || 0;
+    const other = Number(otherCharges) || 0;
+    const adv = Number(advances) || 0;
+    const total = labor + parts + freight + other;
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(t("orders.quoteTitle", { number: order.order_number }), 14, 18);
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(order.customers?.name ?? "", 14, 25);
+    doc.text(`${order.equipment?.brand ?? ""} ${order.equipment?.model ?? ""}`.trim(), 14, 30);
+    autoTable(doc, {
+      head: [[t("orders.concept"), t("orders.amount")]],
+      body: [
+        [t("orders.laborCost"), money(labor)],
+        [t("orders.partsCost"), money(parts)],
+        [t("orders.freightCost"), money(freight)],
+        [t("orders.otherCharges"), money(other)],
+        [t("orders.advances"), money(adv)],
+        [t("orders.total"), money(total)],
+      ],
+      startY: 36,
+      styles: { fontSize: 9 },
+    });
+    doc.save(`quote-${order.order_number}.pdf`);
+  };
 
   const partsEditor = (opts: {
     stage: "quoted" | "used";
@@ -769,6 +812,11 @@ function OrderDetailPage() {
                     </span>
                   </div>
                   <div className="flex gap-2">
+                    {budget && (
+                      <Button variant="outline" onClick={downloadQuote}>
+                        {t("orders.downloadQuote")}
+                      </Button>
+                    )}
                     <Button onClick={() => saveBudget.mutate()} disabled={saveBudget.isPending}>
                       {t("orders.saveBudget")}
                     </Button>
@@ -790,7 +838,7 @@ function OrderDetailPage() {
                   ))}
                 </div>
               )}
-              {budget?.decision === "deferred" && (
+              {((canEditBudget && budget) || budget?.decision === "deferred") && (
                 <div className="space-y-2">
                   <Label>{t("orders.deferredReason")}</Label>
                   <Input
