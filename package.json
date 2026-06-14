@@ -8,7 +8,9 @@
   "type": "module",
   "scripts": {
     "dev": "CF_WORKERS=0 bun --bun vite dev",
+    "dev:local": "bash scripts/dev-local.sh",
     "dev:cf": "CF_WORKERS=1 bun --bun vite dev",
+    "seed:admin": "bash -c 'eval \"$(supabase status -o env)\"; API_URL=\"$API_URL\" SERVICE_ROLE_KEY=\"$SERVICE_ROLE_KEY\" node scripts/seed-admin.mjs'",
     "build": "CF_WORKERS=1 bun --bun vite build",
     "build:dev": "bun --bun vite build --mode development",
     "preview": "CF_WORKERS=1 bun --bun vite preview",
