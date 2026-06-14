@@ -109,8 +109,8 @@
 
 ## 14. i18n & UX polish
 
-- [ ] 14.1 Extend `src/locales/en.ts` and `es.ts` for new stages, modules, roles, and labels
-- [ ] 14.2 Consistency pass: status badges, empty states, loading (`async-card-body`), toasts (`sonner`), semantic color tokens (no hardcoded colors), responsive layout
+- [x] 14.1 Extend `src/locales/en.ts` and `es.ts` for new stages, modules, roles, and labels
+- [x] 14.2 Consistency pass: status badges, empty states, loading (`async-card-body`), toasts (`sonner`), semantic color tokens (no hardcoded colors), responsive layout
 
 ## 15. Mandatory testing & verification
 

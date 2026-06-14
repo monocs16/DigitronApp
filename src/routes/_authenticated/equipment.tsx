@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -126,7 +127,7 @@ function EquipmentPage() {
             }}
           >
             <div className="flex-1 space-y-2">
-              <label className="text-sm font-medium">{t("equipmentPage.serialNumber")}</label>
+              <Label>{t("equipmentPage.serialNumber")}</Label>
               <Input
                 value={serial}
                 onChange={(e) => setSerial(e.target.value)}
