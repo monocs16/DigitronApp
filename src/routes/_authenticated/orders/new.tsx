@@ -35,6 +35,7 @@ function NewOrderPage() {
   const [clientId, setClientId] = useState("");
   const [equipmentId, setEquipmentId] = useState("");
   const [technicianId, setTechnicianId] = useState<string>("none");
+  const [source, setSource] = useState<string>("counter");
   const [problem, setProblem] = useState("");
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [equipmentDialogOpen, setEquipmentDialogOpen] = useState(false);
@@ -71,6 +72,7 @@ function NewOrderPage() {
           client_id: clientId,
           equipment_id: equipmentId,
           reported_fault: problem.trim(),
+          source,
           technician_id: technicianId === "none" ? null : technicianId,
         })
         .select("id")
@@ -178,6 +180,21 @@ function NewOrderPage() {
                   {techs.map((tech) => (
                     <SelectItem key={tech.id} value={tech.id}>
                       {tech.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("orders.origin")}</Label>
+              <Select value={source} onValueChange={setSource}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t("orders.originPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(["counter", "phone", "web", "other"] as const).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {t(`orders.source_${s}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>

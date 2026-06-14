@@ -49,6 +49,21 @@ function DashboardPage() {
     (o) => o.technician_id === profile?.id && !["delivered", "closed"].includes(o.stage),
   );
 
+  // Pending-action inbox: orders awaiting THIS user by role + stage + assignment.
+  const isSuper = hasRole("super");
+  const isAdmin = hasRole("administrativo");
+  const isTech = hasRole("tecnico");
+  const ADMIN_STAGES = ["intake", "budget", "customer_decision", "payment", "delivered"];
+  const TECH_STAGES = ["evaluation", "repair"];
+  const inbox = orders.filter((o) => {
+    const adminMatch = (isSuper || isAdmin) && ADMIN_STAGES.includes(o.stage);
+    const techMatch =
+      (isSuper || isTech) &&
+      TECH_STAGES.includes(o.stage) &&
+      (isSuper || o.technician_id === profile?.id);
+    return adminMatch || techMatch;
+  });
+
   const summaryCards = [
     {
       label: t("dashboard.active"),
@@ -93,6 +108,39 @@ function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {t("dashboard.pendingInbox", { count: inbox.length })}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {inbox.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("dashboard.inboxEmpty")}</p>
+          ) : (
+            <ul className="divide-y">
+              {inbox.slice(0, 8).map((o) => (
+                <li key={o.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <div className="min-w-0">
+                    <Link
+                      to="/orders/$orderId"
+                      params={{ orderId: o.id }}
+                      className="font-medium hover:underline"
+                    >
+                      {o.order_number}
+                    </Link>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {o.customers?.name} · {o.equipment?.brand} {o.equipment?.model}
+                    </p>
+                  </div>
+                  <StageBadge stage={o.stage} t={t} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

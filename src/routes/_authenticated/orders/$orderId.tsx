@@ -26,10 +26,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getStageLabel, getDecisionLabel, type OrderStage } from "@/lib/digitron";
+import { getStageLabel, getDecisionLabel, getRoleLabel, type OrderStage } from "@/lib/digitron";
 import { StageBadge } from "@/components/status-badge";
-import { allowedNextStages, type TransitionContext } from "@/lib/state-machine";
-import { transitionOrder, createWarrantyOrder } from "@/lib/orders.functions";
+import { OrderStageStepper } from "@/components/order-stage-stepper";
+import {
+  transitionOrder,
+  createWarrantyOrder,
+  recordBudgetDecision,
+  notifyCustomer,
+  deliverOrder,
+  closeOrder,
+} from "@/lib/orders.functions";
 
 export const Route = createFileRoute("/_authenticated/orders/$orderId")({
   component: OrderDetailPage,
@@ -46,6 +53,10 @@ function OrderDetailPage() {
   const navigate = useNavigate();
   const transition = useServerFn(transitionOrder);
   const openWarranty = useServerFn(createWarrantyOrder);
+  const recordDecision = useServerFn(recordBudgetDecision);
+  const notify = useServerFn(notifyCustomer);
+  const deliver = useServerFn(deliverOrder);
+  const finalize = useServerFn(closeOrder);
 
   const isSuper = roles.includes("super");
   const isAdministrativo = roles.includes("administrativo");
@@ -222,13 +233,9 @@ function OrderDetailPage() {
   const canAssignTech = isSuper || isAdministrativo;
   const canEditNotes = isSuper || isAdministrativo || isAssigned;
 
-  const ctx: TransitionContext = {
-    roles,
-    isAssignedTechnician: isAssigned,
-    budgetApproved,
-    balanceSettled,
-  };
-  const nextStages = order ? allowedNextStages(order.stage as OrderStage, ctx) : [];
+  // Ownership of the current step (mirrors STAGE_ACTOR_ROLES / MODULE_MATRIX).
+  const ownerAdmin = isSuper || isAdministrativo;
+  const ownerTechAssigned = isSuper || (isTecnico && isAssigned);
 
   // ---- Local form state, hydrated from loaded data ----
   const [diagnosis, setDiagnosis] = useState("");
@@ -250,11 +257,15 @@ function OrderDetailPage() {
   const [evalPartQty, setEvalPartQty] = useState("1");
   const [repairPartId, setRepairPartId] = useState("");
   const [repairPartQty, setRepairPartQty] = useState("1");
+  const [receivedBy, setReceivedBy] = useState("");
+  const [closingNotes, setClosingNotes] = useState("");
 
   useEffect(() => {
     if (order) {
       setGeneralNotes(order.general_notes ?? "");
       setTechnicianAssign(order.technician_id ?? "none");
+      setReceivedBy(order.received_by ?? "");
+      setClosingNotes(order.closing_notes ?? "");
     }
   }, [order]);
   useEffect(() => {
@@ -381,25 +392,46 @@ function OrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const decideBudget = useMutation({
-    mutationFn: async (decision: "approved" | "deferred" | "rejected") => {
-      if (!budget) throw new Error(i18n.t("orders.budgetFirst"));
-      if (decision === "deferred" && !deferredReason.trim()) {
-        throw new Error(i18n.t("orders.deferredReasonRequired"));
-      }
-      const { error } = await supabase
-        .from("budgets")
-        .update({
-          decision,
-          decided_at: new Date().toISOString(),
-          deferred_reason: decision === "deferred" ? deferredReason.trim() : null,
-        })
-        .eq("id", budget.id);
-      if (error) throw error;
+  const decide = useMutation({
+    mutationFn: async (decision: "approved" | "deferred" | "rejected") =>
+      recordDecision({
+        data: { order_id: orderId, decision, deferred_reason: deferredReason || undefined },
+      }),
+    onSuccess: () => {
+      toast.success(t("orders.decisionRecorded"));
+      invalidate("order", "budget");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const notifyMut = useMutation({
+    mutationFn: async (kind: "decision" | "delivery") =>
+      notify({ data: { order_id: orderId, kind } }),
+    onSuccess: () => {
+      toast.success(t("orders.notifyRecorded"), { description: t("orders.emailPending") });
+      invalidate("order");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deliverMut = useMutation({
+    mutationFn: async () => {
+      if (!receivedBy.trim()) throw new Error(i18n.t("orders.receivedByRequired"));
+      return deliver({ data: { order_id: orderId, received_by: receivedBy.trim() } });
     },
     onSuccess: () => {
-      toast.success(t("orders.budgetSaved"));
-      invalidate("budget");
+      toast.success(t("orders.stageUpdated"));
+      invalidate("order");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const closeMut = useMutation({
+    mutationFn: async () =>
+      finalize({ data: { order_id: orderId, closing_notes: closingNotes || undefined } }),
+    onSuccess: () => {
+      toast.success(t("orders.stageUpdated"));
+      invalidate("order");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -654,6 +686,199 @@ function OrderDetailPage() {
     return t("orders.fieldChanged", { field: keys.join(", ") || a.operation });
   };
 
+  const waiting = (role: string) => (
+    <p className="text-sm text-muted-foreground">
+      {t("orders.waitingFor", { role: getRoleLabel(role, t) })}
+    </p>
+  );
+
+  const currentStep = (() => {
+    switch (order.stage as OrderStage) {
+      case "intake":
+        return ownerAdmin ? (
+          <Button onClick={() => changeStage.mutate("evaluation")} disabled={changeStage.isPending}>
+            {t("orders.sendToEvaluation")}
+          </Button>
+        ) : (
+          waiting("administrativo")
+        );
+      case "evaluation":
+        return ownerTechAssigned ? (
+          <Button onClick={() => changeStage.mutate("budget")} disabled={changeStage.isPending}>
+            {t("orders.completeEvaluation")}
+          </Button>
+        ) : (
+          waiting("tecnico")
+        );
+      case "budget":
+        return ownerAdmin ? (
+          <Button
+            onClick={() => changeStage.mutate("customer_decision")}
+            disabled={changeStage.isPending}
+          >
+            {t("orders.sendToDecision")}
+          </Button>
+        ) : (
+          waiting("administrativo")
+        );
+      case "customer_decision":
+        return ownerAdmin ? (
+          <div className="space-y-3">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => notifyMut.mutate("decision")}
+              disabled={notifyMut.isPending}
+            >
+              {t("orders.notifyDecision")}
+            </Button>
+            {order.decision_notified_at && (
+              <p className="text-xs text-muted-foreground">
+                {t("orders.decisionNotifiedAt", {
+                  date: new Date(order.decision_notified_at).toLocaleString(),
+                })}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label>{t("orders.deferredReason")}</Label>
+              <Input
+                value={deferredReason}
+                onChange={(e) => setDeferredReason(e.target.value)}
+                placeholder={t("orders.deferredReasonHint")}
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                size="sm"
+                onClick={() => decide.mutate("approved")}
+                disabled={decide.isPending}
+              >
+                {getDecisionLabel("approved", t)}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => decide.mutate("deferred")}
+                disabled={decide.isPending}
+              >
+                {getDecisionLabel("deferred", t)}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => decide.mutate("rejected")}
+                disabled={decide.isPending}
+              >
+                {getDecisionLabel("rejected", t)}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          waiting("administrativo")
+        );
+      case "on_hold":
+        return ownerAdmin ? (
+          <Button
+            onClick={() => changeStage.mutate("customer_decision")}
+            disabled={changeStage.isPending}
+          >
+            {t("orders.backToDecision")}
+          </Button>
+        ) : (
+          waiting("administrativo")
+        );
+      case "repair":
+        return ownerTechAssigned ? (
+          <Button onClick={() => changeStage.mutate("payment")} disabled={changeStage.isPending}>
+            {t("orders.markRepairComplete")}
+          </Button>
+        ) : (
+          waiting("tecnico")
+        );
+      case "payment":
+        return ownerAdmin ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+              <span className="text-muted-foreground">{t("orders.balance")}</span>
+              <span className="font-semibold">{money(balance)}</span>
+            </div>
+            {!balanceSettled ? (
+              <p className="text-xs text-muted-foreground">{t("orders.settleBalanceFirst")}</p>
+            ) : (
+              <div className="space-y-2">
+                <Label>{t("orders.receivedBy")}</Label>
+                <Input value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
+                <Button
+                  className="w-full"
+                  onClick={() => deliverMut.mutate()}
+                  disabled={deliverMut.isPending}
+                >
+                  {t("orders.deliver")}
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          waiting("administrativo")
+        );
+      case "delivered":
+        return ownerAdmin ? (
+          <div className="space-y-3">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => notifyMut.mutate("delivery")}
+              disabled={notifyMut.isPending}
+            >
+              {t("orders.notifyDelivery")}
+            </Button>
+            {order.delivery_notified_at && (
+              <p className="text-xs text-muted-foreground">
+                {t("orders.deliveryNotifiedAt", {
+                  date: new Date(order.delivery_notified_at).toLocaleString(),
+                })}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label>{t("orders.closingNotes")}</Label>
+              <Textarea
+                rows={2}
+                value={closingNotes}
+                onChange={(e) => setClosingNotes(e.target.value)}
+              />
+              <Button
+                className="w-full"
+                onClick={() => closeMut.mutate()}
+                disabled={closeMut.isPending}
+              >
+                {t("orders.closeOrder")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          waiting("administrativo")
+        );
+      case "closed":
+        return (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t("orders.orderClosed")}</p>
+            {ownerAdmin && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => warrantyOrder.mutate()}
+                disabled={warrantyOrder.isPending}
+              >
+                {t("orders.openWarranty")}
+              </Button>
+            )}
+          </div>
+        );
+      default:
+        return null;
+    }
+  })();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
@@ -671,6 +896,12 @@ function OrderDetailPage() {
       >
         <StageBadge stage={order.stage} t={t} />
       </PageHeader>
+
+      <Card>
+        <CardContent className="py-4">
+          <OrderStageStepper stage={order.stage} t={t} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -701,6 +932,31 @@ function OrderDetailPage() {
                   {t("orders.reportedProblem")}
                 </p>
                 <p className="whitespace-pre-wrap">{order.reported_fault}</p>
+              </div>
+              <div className="sm:col-span-2 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                <span>
+                  {t("orders.origin")}:{" "}
+                  {order.source
+                    ? t(`orders.source_${order.source}`, { defaultValue: order.source })
+                    : t("common.noData")}
+                </span>
+                {order.authorized && (
+                  <span className="text-emerald-600">{t("orders.authorized")}</span>
+                )}
+                {order.decision_notified_at && (
+                  <span>
+                    {t("orders.decisionNotifiedAt", {
+                      date: new Date(order.decision_notified_at).toLocaleDateString(),
+                    })}
+                  </span>
+                )}
+                {order.delivery_notified_at && (
+                  <span>
+                    {t("orders.deliveryNotifiedAt", {
+                      date: new Date(order.delivery_notified_at).toLocaleDateString(),
+                    })}
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -823,30 +1079,10 @@ function OrderDetailPage() {
                   </div>
                 </div>
               )}
-              {canEditBudget && budget && (
-                <div className="flex flex-wrap gap-2">
-                  {(["approved", "deferred", "rejected"] as const).map((d) => (
-                    <Button
-                      key={d}
-                      variant={budget.decision === d ? "default" : "outline"}
-                      size="sm"
-                      disabled={decideBudget.isPending}
-                      onClick={() => decideBudget.mutate(d)}
-                    >
-                      {getDecisionLabel(d, t)}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              {((canEditBudget && budget) || budget?.decision === "deferred") && (
-                <div className="space-y-2">
-                  <Label>{t("orders.deferredReason")}</Label>
-                  <Input
-                    value={deferredReason}
-                    onChange={(e) => setDeferredReason(e.target.value)}
-                    disabled={!canEditBudget}
-                  />
-                </div>
+              {budget?.decision === "deferred" && budget.deferred_reason && (
+                <p className="text-xs text-muted-foreground">
+                  {t("orders.deferredReason")}: {budget.deferred_reason}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -1080,29 +1316,11 @@ function OrderDetailPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t("orders.actions")}</CardTitle>
+              <CardTitle className="text-base">{t("orders.currentStep")}</CardTitle>
+              <p className="text-xs text-muted-foreground">{getStageLabel(order.stage, t)}</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>{t("orders.changeStage")}</Label>
-                {nextStages.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t("orders.noTransitions")}</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {nextStages.map((s) => (
-                      <Button
-                        key={s}
-                        variant="outline"
-                        size="sm"
-                        disabled={changeStage.isPending}
-                        onClick={() => changeStage.mutate(s)}
-                      >
-                        → {getStageLabel(s, t)}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {currentStep}
 
               {canAssignTech && (
                 <>
@@ -1129,20 +1347,6 @@ function OrderDetailPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </>
-              )}
-
-              {canAssignTech && ["delivered", "closed"].includes(order.stage) && (
-                <>
-                  <Separator />
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={warrantyOrder.isPending}
-                    onClick={() => warrantyOrder.mutate()}
-                  >
-                    {t("orders.openWarranty")}
-                  </Button>
                 </>
               )}
             </CardContent>
