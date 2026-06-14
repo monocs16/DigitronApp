@@ -41,7 +41,7 @@
 - [x] 3.2 Expand `src/lib/digitron.ts`: new `OrderStage`, stage labels/tokens, 4-role labels, `budget_decision`
 - [x] 3.3 Rewrite `src/lib/state-machine.ts`: BPMN transitions, customer-decision branch, deferred loop, repair-requires-approved-budget and delivery-requires-paid gates, role gating per stage
 - [x] 3.4 Add a single `MODULE_MATRIX` constant (mirrors `docs/data-model.md`) used by UI to scope nav and disable controls
-- [ ] 3.5 Fix compile fallout across the app from the new types (build must pass)
+- [x] 3.5 Fix compile fallout across the app from the new types (build must pass)
 
 ## 4. Access control (auth, roles, navigation)
 
@@ -75,7 +75,7 @@
 ## 8. Technical evaluation
 
 - [ ] 8.1 `evaluations.functions.ts` (create/get) + needed-parts (quoted `order_parts`) with stock availability flag
-- [ ] 8.2 Evaluation section UI in the order hub (tecnico INGRESO on assigned orders)
+- [x] 8.2 Evaluation section UI in the order hub (tecnico INGRESO on assigned orders)
 - [ ] 8.3 Manual verification: assigned tecnico submits evaluation + needed parts; non-assigned blocked
 
 ## 9. Budget & approval
@@ -87,18 +87,18 @@
 ## 10. Repair execution
 
 - [ ] 10.1 `repairs.functions.ts` (start/update/complete) recording used parts and decrementing stock transactionally (uses 1.14)
-- [ ] 10.2 Repair section UI in the order hub (assigned tecnico)
+- [x] 10.2 Repair section UI in the order hub (assigned tecnico)
 - [ ] 10.3 Manual verification: complete a repair, confirm stock decremented and negative stock prevented
 
 ## 11. Payments
 
 - [ ] 11.1 `payments.functions.ts` (create/list) + order balance computation (budget total − payments)
-- [ ] 11.2 Payments section UI: register payment, show total paid / outstanding; delivery gate on balance with super/administrativo waiver
+- [x] 11.2 Payments section UI: register payment, show total paid / outstanding; delivery gate on balance with super/administrativo waiver
 - [ ] 11.3 Manual verification: register partial + full payment; delivery blocked until settled or waived
 
 ## 12. Audit trail
 
-- [ ] 12.1 Order/record history UI reading `audit_log` (newest-first, read-only) in the order hub
+- [x] 12.1 Order/record history UI reading `audit_log` (newest-first, read-only) in the order hub
 - [ ] 12.2 Manual verification: edits across modules produce audit entries with old/new values
 
 ## 13. Reporting & dashboard
