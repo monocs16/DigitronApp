@@ -9,6 +9,12 @@ ADMIN_EMAIL="${ADMIN_EMAIL:-admin@digitron.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-digitron123}"
 ADMIN_NAME="${ADMIN_NAME:-Admin Digitron}"
 
+# --fresh: wipe the local DB and reapply migrations for a clean, isolated run.
+FRESH=0
+for arg in "$@"; do
+  [ "$arg" = "--fresh" ] && FRESH=1
+done
+
 if ! command -v supabase >/dev/null 2>&1; then
   echo "✗ supabase CLI not found. Install it: https://supabase.com/docs/guides/cli" >&2
   exit 1
@@ -22,9 +28,14 @@ else
   supabase start
 fi
 
-# 2. Apply any pending migrations (no-op if already up to date).
-echo "▶ Applying migrations…"
-supabase migration up >/dev/null 2>&1 || true
+# 2. Bring the schema up to date (reset wipes data; otherwise apply pending).
+if [ "$FRESH" -eq 1 ]; then
+  echo "▶ Resetting local DB to a clean state…"
+  supabase db reset
+else
+  echo "▶ Applying migrations…"
+  supabase migration up >/dev/null 2>&1 || true
+fi
 
 # 3. Load local credentials from the running stack.
 eval "$(supabase status -o env)"   # sets API_URL, ANON_KEY, SERVICE_ROLE_KEY, …
