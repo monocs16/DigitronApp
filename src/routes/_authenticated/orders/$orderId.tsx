@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import i18n from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -163,7 +164,42 @@ function OrderDetailPage() {
     },
   });
 
+  const { data: catalog = [] } = useQuery({
+    queryKey: ["parts-catalog"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("parts")
+        .select("id, part_code, description, unit_cost, stock")
+        .order("part_code", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: orderParts = [] } = useQuery({
+    queryKey: ["order-parts", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_parts")
+        .select("id, part_id, stage, quantity, unit_cost_at_registration, in_stock_at_registration")
+        .eq("order_id", orderId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const nameById = new Map(people.map((p) => [p.id, p.full_name]));
+  const partLabel = (id: string) => {
+    const p = catalog.find((c) => c.id === id);
+    return p ? `${p.part_code} — ${p.description}` : t("common.noData");
+  };
+  const quotedParts = orderParts.filter((p) => p.stage === "quoted");
+  const usedParts = orderParts.filter((p) => p.stage === "used");
+  const quotedPartsTotal = quotedParts.reduce(
+    (s, p) => s + Number(p.unit_cost_at_registration) * p.quantity,
+    0,
+  );
 
   const isAssigned = !!order && order.technician_id === profile?.id;
 
@@ -208,6 +244,10 @@ function OrderDetailPage() {
   const [payMethod, setPayMethod] = useState<string>("cash");
   const [payReference, setPayReference] = useState("");
   const [technicianAssign, setTechnicianAssign] = useState<string>("none");
+  const [evalPartId, setEvalPartId] = useState("");
+  const [evalPartQty, setEvalPartQty] = useState("1");
+  const [repairPartId, setRepairPartId] = useState("");
+  const [repairPartQty, setRepairPartQty] = useState("1");
 
   useEffect(() => {
     if (order) {
@@ -409,6 +449,40 @@ function OrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const addPart = useMutation({
+    mutationFn: async (args: { stage: "quoted" | "used"; partId: string; qty: number }) => {
+      const part = catalog.find((c) => c.id === args.partId);
+      if (!part) throw new Error(i18n.t("orders.selectPart"));
+      if (args.qty <= 0) throw new Error(i18n.t("orders.invalidQty"));
+      const { error } = await supabase.from("order_parts").insert({
+        order_id: orderId,
+        part_id: args.partId,
+        stage: args.stage,
+        quantity: args.qty,
+        unit_cost_at_registration: part.unit_cost,
+        in_stock_at_registration: part.stock >= args.qty,
+        ...(args.stage === "quoted" && evaluation ? { evaluation_id: evaluation.id } : {}),
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_res, args) => {
+      toast.success(t("orders.partAdded"));
+      if (args.stage === "quoted") {
+        setEvalPartId("");
+        setEvalPartQty("1");
+      } else {
+        setRepairPartId("");
+        setRepairPartQty("1");
+        // 'used' lines decrement catalog stock via DB trigger.
+        qc.invalidateQueries({ queryKey: ["parts-catalog"] });
+        qc.invalidateQueries({ queryKey: ["parts"] });
+      }
+      qc.invalidateQueries({ queryKey: ["order-parts", orderId] });
+      qc.invalidateQueries({ queryKey: ["audit", orderId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const uploadPhoto = useMutation({
     mutationFn: async (file: File) => {
       if (photos.length >= MAX_PHOTOS)
@@ -452,6 +526,76 @@ function OrderDetailPage() {
   if (!order) return <p className="text-sm text-muted-foreground">{t("orders.notFound")}</p>;
 
   const money = (n: number) => n.toFixed(2);
+
+  const partsEditor = (opts: {
+    stage: "quoted" | "used";
+    lines: typeof orderParts;
+    canEdit: boolean;
+    partId: string;
+    setPartId: (v: string) => void;
+    qty: string;
+    setQty: (v: string) => void;
+  }) => (
+    <div className="space-y-2">
+      <Label>{opts.stage === "quoted" ? t("orders.neededParts") : t("orders.usedParts")}</Label>
+      {opts.lines.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{t("orders.noParts")}</p>
+      ) : (
+        <ul className="divide-y text-sm">
+          {opts.lines.map((l) => (
+            <li key={l.id} className="flex items-center justify-between py-1.5">
+              <span>
+                {partLabel(l.part_id)} ×{l.quantity}
+              </span>
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                {money(Number(l.unit_cost_at_registration) * l.quantity)}
+                {!l.in_stock_at_registration && (
+                  <Badge variant="outline" className="border-amber-500 text-amber-600">
+                    {t("orders.notInStock")}
+                  </Badge>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {opts.canEdit && (
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <Select value={opts.partId} onValueChange={opts.setPartId}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("orders.selectPart")} />
+              </SelectTrigger>
+              <SelectContent>
+                {catalog.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.part_code} — {c.description} ({t("orders.stockShort", { count: c.stock })})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            className="w-20"
+            value={opts.qty}
+            onChange={(e) => opts.setQty(e.target.value)}
+          />
+          <Button
+            variant="outline"
+            disabled={addPart.isPending || !opts.partId}
+            onClick={() =>
+              addPart.mutate({ stage: opts.stage, partId: opts.partId, qty: Number(opts.qty) })
+            }
+          >
+            {t("orders.addPart")}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 
   const auditLabel = (a: (typeof audit)[number]) => {
     if (a.operation === "INSERT") return t("orders.orderCreated");
@@ -552,6 +696,16 @@ function OrderDetailPage() {
                   </Button>
                 </div>
               )}
+              <Separator />
+              {partsEditor({
+                stage: "quoted",
+                lines: quotedParts,
+                canEdit: canEditEvaluation,
+                partId: evalPartId,
+                setPartId: setEvalPartId,
+                qty: evalPartQty,
+                setQty: setEvalPartQty,
+              })}
             </CardContent>
           </Card>
 
@@ -584,6 +738,15 @@ function OrderDetailPage() {
                   </div>
                 ))}
               </div>
+              {canEditBudget && quotedPartsTotal > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPartsCost(String(quotedPartsTotal))}
+                >
+                  {t("orders.usePartsTotal", { total: money(quotedPartsTotal) })}
+                </Button>
+              )}
               <div className="space-y-2">
                 <Label>{t("orders.customerComments")}</Label>
                 <Textarea
@@ -694,6 +857,16 @@ function OrderDetailPage() {
                   </Button>
                 </div>
               )}
+              <Separator />
+              {partsEditor({
+                stage: "used",
+                lines: usedParts,
+                canEdit: canEditRepair,
+                partId: repairPartId,
+                setPartId: setRepairPartId,
+                qty: repairPartQty,
+                setQty: setRepairPartQty,
+              })}
             </CardContent>
           </Card>
 

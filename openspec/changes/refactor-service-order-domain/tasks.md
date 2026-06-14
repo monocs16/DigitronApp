@@ -74,7 +74,7 @@
 
 ## 8. Technical evaluation
 
-- [ ] 8.1 `evaluations.functions.ts` (create/get) + needed-parts (quoted `order_parts`) with stock availability flag
+- [x] 8.1 `evaluations.functions.ts` (create/get) + needed-parts (quoted `order_parts`) with stock availability flag
 - [x] 8.2 Evaluation section UI in the order hub (tecnico INGRESO on assigned orders)
 - [ ] 8.3 Manual verification: assigned tecnico submits evaluation + needed parts; non-assigned blocked
 
@@ -86,7 +86,7 @@
 
 ## 10. Repair execution
 
-- [ ] 10.1 `repairs.functions.ts` (start/update/complete) recording used parts and decrementing stock transactionally (uses 1.14)
+- [x] 10.1 `repairs.functions.ts` (start/update/complete) recording used parts and decrementing stock transactionally (uses 1.14)
 - [x] 10.2 Repair section UI in the order hub (assigned tecnico)
 - [ ] 10.3 Manual verification: complete a repair, confirm stock decremented and negative stock prevented
 
