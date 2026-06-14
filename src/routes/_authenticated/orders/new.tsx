@@ -13,7 +13,6 @@ import { supabase } from "@/integrations/supabase/client";
 import i18n from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -37,7 +36,6 @@ function NewOrderPage() {
   const [equipmentId, setEquipmentId] = useState("");
   const [technicianId, setTechnicianId] = useState<string>("none");
   const [problem, setProblem] = useState("");
-  const [estimated, setEstimated] = useState("");
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [equipmentDialogOpen, setEquipmentDialogOpen] = useState(false);
 
@@ -72,9 +70,8 @@ function NewOrderPage() {
         .insert({
           client_id: clientId,
           equipment_id: equipmentId,
-          problem_description: problem.trim(),
+          reported_fault: problem.trim(),
           technician_id: technicianId === "none" ? null : technicianId,
-          estimated_cost: estimated ? Number(estimated) : null,
         })
         .select("id")
         .single();
@@ -185,16 +182,6 @@ function NewOrderPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t("orders.estimatedCost")}</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={estimated}
-                onChange={(e) => setEstimated(e.target.value)}
-              />
             </div>
             <div className="sm:col-span-2 flex justify-end gap-2">
               <Button asChild variant="outline">

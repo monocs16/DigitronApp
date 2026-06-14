@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { APP_ROLES, type AppRole } from "@/lib/digitron";
 
 function getAdmin() {
   const url = process.env.SUPABASE_URL!;
@@ -12,14 +13,17 @@ function getAdmin() {
   });
 }
 
-async function assertAdmin(supabase: ReturnType<typeof getAdmin>, userId: string) {
+const roleSchema = z.enum(APP_ROLES);
+
+async function assertSuper(supabase: ReturnType<typeof getAdmin>, userId: string) {
   const { data } = await supabase
-    .from("profiles")
+    .from("user_roles")
     .select("role")
-    .eq("id", userId)
+    .eq("user_id", userId)
+    .eq("role", "super")
     .maybeSingle();
-  if (!data || data.role !== "admin") {
-    throw new Error("Solo administradores pueden gestionar usuarios.");
+  if (!data) {
+    throw new Error("Only super users can manage users.");
   }
 }
 
@@ -27,12 +31,22 @@ export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const admin = getAdmin();
-    await assertAdmin(admin, context.userId);
-    const { data, error } = await admin
-      .from("profiles")
-      .select("id, full_name, role, created_at")
-      .order("created_at", { ascending: false });
+    await assertSuper(admin, context.userId);
+
+    const [{ data: profiles, error }, { data: roleRows, error: roleErr }] = await Promise.all([
+      admin
+        .from("profiles")
+        .select("id, full_name, created_at")
+        .order("created_at", { ascending: false }),
+      admin.from("user_roles").select("user_id, role"),
+    ]);
     if (error) throw new Error(error.message);
+    if (roleErr) throw new Error(roleErr.message);
+
+    const roleByUser = new Map<string, AppRole>();
+    for (const r of roleRows ?? []) {
+      if (!roleByUser.has(r.user_id)) roleByUser.set(r.user_id, r.role as AppRole);
+    }
 
     // Fetch emails via auth admin
     const { data: authList, error: authErr } = await admin.auth.admin.listUsers({
@@ -42,14 +56,28 @@ export const listUsers = createServerFn({ method: "GET" })
     if (authErr) throw new Error(authErr.message);
     const emailById = new Map(authList.users.map((u) => [u.id, u.email ?? ""]));
 
-    return (data ?? []).map((p) => ({
+    return (profiles ?? []).map((p) => ({
       id: p.id,
       full_name: p.full_name,
-      role: p.role,
+      role: roleByUser.get(p.id) ?? null,
       created_at: p.created_at,
       email: emailById.get(p.id) ?? "",
     }));
   });
+
+/** Replace the user's role with a single role row. */
+async function setUserRole(
+  supabase: ReturnType<typeof getAdmin>,
+  userId: string,
+  role: AppRole,
+) {
+  const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
+  if (delErr) throw new Error(delErr.message);
+  const { error: insErr } = await supabase
+    .from("user_roles")
+    .insert({ user_id: userId, role });
+  if (insErr) throw new Error(insErr.message);
+}
 
 export const createUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -59,13 +87,13 @@ export const createUser = createServerFn({ method: "POST" })
         email: z.string().email(),
         password: z.string().min(6).max(128),
         full_name: z.string().min(1).max(200),
-        role: z.enum(["admin", "technician"]),
+        role: roleSchema,
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const admin = getAdmin();
-    await assertAdmin(admin, context.userId);
+    await assertSuper(admin, context.userId);
 
     const { data: created, error } = await admin.auth.admin.createUser({
       email: data.email,
@@ -73,14 +101,16 @@ export const createUser = createServerFn({ method: "POST" })
       email_confirm: true,
       user_metadata: { full_name: data.full_name },
     });
-    if (error || !created.user) throw new Error(error?.message ?? "No se pudo crear");
+    if (error || !created.user) throw new Error(error?.message ?? "Could not create user.");
 
-    // Trigger created profile w/ default role "technician" — override + name
+    // Profile is created by trigger; override name and assign the chosen role.
     const { error: upErr } = await admin
       .from("profiles")
-      .update({ role: data.role, full_name: data.full_name })
+      .update({ full_name: data.full_name })
       .eq("id", created.user.id);
     if (upErr) throw new Error(upErr.message);
+
+    await setUserRole(admin, created.user.id, data.role);
 
     return { id: created.user.id };
   });
@@ -91,21 +121,17 @@ export const updateUserRole = createServerFn({ method: "POST" })
     z
       .object({
         user_id: z.string().uuid(),
-        role: z.enum(["admin", "technician"]),
+        role: roleSchema,
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const admin = getAdmin();
-    await assertAdmin(admin, context.userId);
-    if (data.user_id === context.userId && data.role !== "admin") {
-      throw new Error("No puede quitarse el rol de administrador a sí mismo.");
+    await assertSuper(admin, context.userId);
+    if (data.user_id === context.userId && data.role !== "super") {
+      throw new Error("You cannot remove your own super role.");
     }
-    const { error } = await admin
-      .from("profiles")
-      .update({ role: data.role })
-      .eq("id", data.user_id);
-    if (error) throw new Error(error.message);
+    await setUserRole(admin, data.user_id, data.role);
     return { ok: true };
   });
 
@@ -114,9 +140,9 @@ export const deleteUser = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ user_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const admin = getAdmin();
-    await assertAdmin(admin, context.userId);
+    await assertSuper(admin, context.userId);
     if (data.user_id === context.userId) {
-      throw new Error("No puede eliminarse a sí mismo.");
+      throw new Error("You cannot delete yourself.");
     }
     const { error } = await admin.auth.admin.deleteUser(data.user_id);
     if (error) throw new Error(error.message);

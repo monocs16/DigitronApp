@@ -1,13 +1,13 @@
 import type { TFunction } from "i18next";
-import { getStatusLabel, STATUS_TOKEN, type OrderStatus } from "@/lib/digitron";
+import { getStageLabel, STAGE_TOKEN, type OrderStage } from "@/lib/digitron";
 
-interface StatusBadgeProps {
-  status: OrderStatus;
+interface StageBadgeProps {
+  stage: OrderStage;
   t: TFunction;
 }
 
-export function StatusBadge({ status, t }: StatusBadgeProps) {
-  const token = STATUS_TOKEN[status] ?? "status-closed";
+export function StageBadge({ stage, t }: StageBadgeProps) {
+  const token = STAGE_TOKEN[stage] ?? "stage-closed";
   const varName = `--${token}`;
 
   return (
@@ -23,7 +23,7 @@ export function StatusBadge({ status, t }: StatusBadgeProps) {
         className="h-1.5 w-1.5 rounded-full shrink-0"
         style={{ backgroundColor: `var(${varName})` }}
       />
-      {getStatusLabel(status, t)}
+      {getStageLabel(stage, t)}
     </span>
   );
 }

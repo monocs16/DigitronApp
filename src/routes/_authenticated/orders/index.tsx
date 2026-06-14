@@ -25,8 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getStatusLabel, STATUS_ORDER, type OrderStatus } from "@/lib/digitron";
-import { StatusBadge } from "@/components/status-badge";
+import { getStageLabel, STAGE_ORDER, type OrderStage } from "@/lib/digitron";
+import { StageBadge } from "@/components/status-badge";
 
 type OrdersSearch = { clientId?: string; equipmentId?: string };
 
@@ -41,12 +41,12 @@ export const Route = createFileRoute("/_authenticated/orders/")({
 type OrderRow = {
   id: string;
   order_number: string;
-  status: OrderStatus;
+  stage: OrderStage;
   technician_id: string | null;
   client_id: string;
   equipment_id: string;
   created_at: string;
-  clients: { name: string } | null;
+  customers: { name: string } | null;
   equipment: { brand: string; model: string } | null;
   technician: { full_name: string } | null;
 };
@@ -54,7 +54,7 @@ type OrderRow = {
 function OrdersPage() {
   const { t } = useTranslation();
   const { clientId, equipmentId } = Route.useSearch();
-  const [status, setStatus] = useState<string>("all");
+  const [stage, setStage] = useState<string>("all");
   const [technician, setTechnician] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -67,22 +67,13 @@ function OrdersPage() {
         .from("orders")
         .select(
           `
-          id, order_number, status, technician_id, client_id, equipment_id, created_at,
-          clients(name), equipment(brand, model),
+          id, order_number, stage, technician_id, client_id, equipment_id, created_at,
+          customers(name), equipment(brand, model),
           technician:profiles!orders_technician_id_fkey(full_name)
         `,
         )
         .order("created_at", { ascending: false });
-      if (error) {
-        const { data: data2, error: err2 } = await supabase
-          .from("orders")
-          .select(
-            `id, order_number, status, technician_id, client_id, equipment_id, created_at, clients(name), equipment(brand, model)`,
-          )
-          .order("created_at", { ascending: false });
-        if (err2) throw err2;
-        return (data2 ?? []).map((d) => ({ ...d, technician: null })) as unknown as OrderRow[];
-      }
+      if (error) throw error;
       return data as unknown as OrderRow[];
     },
   });
@@ -93,7 +84,7 @@ function OrdersPage() {
     return orders.filter((o) => {
       if (clientId && o.client_id !== clientId) return false;
       if (equipmentId && o.equipment_id !== equipmentId) return false;
-      if (status !== "all" && o.status !== status) return false;
+      if (stage !== "all" && o.stage !== stage) return false;
       if (technician !== "all") {
         if (technician === "none" && o.technician_id) return false;
         if (technician !== "none" && o.technician_id !== technician) return false;
@@ -102,12 +93,12 @@ function OrdersPage() {
       if (toDate && new Date(o.created_at) > new Date(toDate + "T23:59:59")) return false;
       if (q) {
         const hay =
-          `${o.order_number} ${o.clients?.name ?? ""} ${o.equipment?.brand ?? ""} ${o.equipment?.model ?? ""}`.toLowerCase();
+          `${o.order_number} ${o.customers?.name ?? ""} ${o.equipment?.brand ?? ""} ${o.equipment?.model ?? ""}`.toLowerCase();
         if (!hay.includes(q.toLowerCase())) return false;
       }
       return true;
     });
-  }, [orders, clientId, equipmentId, status, technician, fromDate, toDate, q]);
+  }, [orders, clientId, equipmentId, stage, technician, fromDate, toDate, q]);
 
   return (
     <div className="space-y-6">
@@ -153,15 +144,15 @@ function OrdersPage() {
             </div>
             <div className="space-y-2">
               <Label>{t("common.status")}</Label>
-              <Select value={status} onValueChange={setStatus}>
+              <Select value={stage} onValueChange={setStage}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("common.all")}</SelectItem>
-                  {STATUS_ORDER.map((s) => (
+                  {STAGE_ORDER.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {getStatusLabel(s, t)}
+                      {getStageLabel(s, t)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -233,14 +224,14 @@ function OrdersPage() {
                         {o.order_number}
                       </Link>
                     </TableCell>
-                    <TableCell>{o.clients?.name ?? t("common.noData")}</TableCell>
+                    <TableCell>{o.customers?.name ?? t("common.noData")}</TableCell>
                     <TableCell>
                       {o.equipment
                         ? `${o.equipment.brand} ${o.equipment.model}`
                         : t("common.noData")}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={o.status} t={t} />
+                      <StageBadge stage={o.stage} t={t} />
                     </TableCell>
                     <TableCell>{o.technician?.full_name ?? t("common.noData")}</TableCell>
                     <TableCell className="text-muted-foreground">

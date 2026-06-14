@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2 } from "lucide-react";
-import { getRoleLabel } from "@/lib/digitron";
+import { APP_ROLES, getRoleLabel, type AppRole } from "@/lib/digitron";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/page-header";
 
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/usuarios")({
 
 function UsersPage() {
   const { t } = useTranslation();
-  const { loading: authLoading, profile } = useAuth();
+  const { loading: authLoading, hasRole } = useAuth();
   const qc = useQueryClient();
   const list = useServerFn(listUsers);
   const create = useServerFn(createUser);
@@ -45,14 +45,14 @@ function UsersPage() {
   const { data: users, isLoading } = useQuery({
     queryKey: ["users"],
     queryFn: () => list(),
-    enabled: profile?.role === "admin",
+    enabled: hasRole("super"),
   });
 
   const [form, setForm] = useState({
     email: "",
     password: "",
     full_name: "",
-    role: "technician" as "admin" | "technician",
+    role: "tecnico" as AppRole,
   });
 
   const createMut = useMutation({
@@ -60,7 +60,7 @@ function UsersPage() {
       email: string;
       password: string;
       full_name: string;
-      role: "admin" | "technician";
+      role: AppRole;
     }) => create({ data: input }),
     onSuccess: () => {
       toast.success(t("users.created"));
@@ -70,8 +70,7 @@ function UsersPage() {
   });
 
   const roleMut = useMutation({
-    mutationFn: (input: { user_id: string; role: "admin" | "technician" }) =>
-      updRole({ data: input }),
+    mutationFn: (input: { user_id: string; role: AppRole }) => updRole({ data: input }),
     onSuccess: () => {
       toast.success(t("users.roleUpdated"));
       qc.invalidateQueries({ queryKey: ["users"] });
@@ -92,14 +91,14 @@ function UsersPage() {
     return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
   }
 
-  if (profile?.role !== "admin") {
+  if (!hasRole("super")) {
     return <Navigate to="/dashboard" replace />;
   }
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     createMut.mutate(form, {
-      onSuccess: () => setForm({ email: "", password: "", full_name: "", role: "technician" }),
+      onSuccess: () => setForm({ email: "", password: "", full_name: "", role: "tecnico" }),
     });
   };
 
@@ -137,14 +136,17 @@ function UsersPage() {
               <Label htmlFor="role">{t("users.role")}</Label>
               <Select
                 value={form.role}
-                onValueChange={(v) => setForm({ ...form, role: v as "admin" | "technician" })}
+                onValueChange={(v) => setForm({ ...form, role: v as AppRole })}
               >
                 <SelectTrigger id="role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="technician">{getRoleLabel("technician", t)}</SelectItem>
-                  <SelectItem value="admin">{getRoleLabel("admin", t)}</SelectItem>
+                  {APP_ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {getRoleLabel(r, t)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -192,22 +194,23 @@ function UsersPage() {
                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
                     <TableCell>
                       <Select
-                        value={u.role}
+                        value={u.role ?? undefined}
                         onValueChange={(v) =>
                           roleMut.mutate({
                             user_id: u.id,
-                            role: v as "admin" | "technician",
+                            role: v as AppRole,
                           })
                         }
                       >
                         <SelectTrigger className="w-44">
-                          <SelectValue />
+                          <SelectValue placeholder={t("common.select")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="technician">
-                            {getRoleLabel("technician", t)}
-                          </SelectItem>
-                          <SelectItem value="admin">{getRoleLabel("admin", t)}</SelectItem>
+                          {APP_ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {getRoleLabel(r, t)}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </TableCell>
