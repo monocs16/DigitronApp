@@ -183,17 +183,29 @@ payment, and closing — with a dedicated warranty path.
 
 ## 4. Business flow (lanes: Customer → Admin → Technician → Warranty)
 
-1. Customer requests service.
+1. Customer requests service. The request **origin** is recorded on the order (`source`:
+   counter / phone / web / other); there is no customer self-service portal (deferred).
 2. Admin registers the order, the customer & equipment, and assigns a technician.
-3. Technician receives the order → technical evaluation → diagnosis + parts list → check stock.
-4. Admin generates the budget (regardless of stock availability) and notifies the customer.
-5. **Customer decision:**
-   - **Approved** → repair → register used parts & work → mark repair complete → payment →
-     delivery notification → close order.
-   - **Deferred** → order on hold (awaiting part/authorization) → returns to customer decision.
+3. Technician receives the order → technical evaluation → diagnosis + parts list → check stock
+   (stock availability is shown as a flag and does **not** block budgeting).
+4. Admin generates the budget (regardless of stock availability) and **notifies the customer**.
+5. **Customer decision** (recorded by admin; **auto-routes** the order):
+   - **Approved** → sets `authorized` → repair → register used parts & work → mark repair complete →
+     payment → delivery notification → close order.
+   - **Deferred** (reason required) → order on hold (awaiting part/authorization) → returns to
+     customer decision.
    - **Rejected** → close order directly.
 6. On close, a **warranty order** may be opened: it looks up history by serial number and starts
    a new order linked to the original via `IdOrdenGarantiaOrigen`.
+
+**Presentation & ownership.** The order is presented as a **guided, stage-driven** flow: each
+stage exposes a single action for the role that owns it (admin: intake/budget/decision/payment/
+delivery/close; assigned technician: evaluation, repair), completed stages are read-only and
+future stages are locked. The dashboard gives each role a **pending-action inbox**.
+
+**Notifications.** "Notify customer" at the decision and delivery steps is a **recorded action**:
+the system stamps `orders.decision_notified_at` / `orders.delivery_notified_at` (audited) and the
+UI shows it. **Actual email delivery is pending implementation** — the UI states this explicitly.
 
 ## 5. Role / permission matrix
 

@@ -1,0 +1,94 @@
+# Digitron — server-function contracts
+#
+# These are TanStack Start server functions (RPC-style, not REST). All run with
+# the `requireSupabaseAuth` middleware (Bearer JWT) and operate under Supabase
+# RLS. On failure a function throws `Error(message)`, serialized by TanStack as a
+# non-2xx response; the message is surfaced to the user via a toast. Input is
+# validated with zod (invalid input throws before the handler runs).
+#
+# Grow this file per feature.
+
+version: 1
+
+serverFunctions:
+  # ---- src/lib/users.functions.ts (super only) ----
+  listUsers:
+    file: src/lib/users.functions.ts
+    method: GET
+    auth: super
+    input: {}
+    returns: "Array<{ id, full_name, role: AppRole|null, created_at, email }>"
+  createUser:
+    file: src/lib/users.functions.ts
+    method: POST
+    auth: super
+    input: { email: string(email), password: string(6..128), full_name: string, role: AppRole }
+    returns: "{ id: string }"
+  updateUserRole:
+    file: src/lib/users.functions.ts
+    method: POST
+    auth: super
+    input: { user_id: uuid, role: AppRole }
+    returns: "{ ok: true }"
+    errors: ["You cannot remove your own super role."]
+  deleteUser:
+    file: src/lib/users.functions.ts
+    method: POST
+    auth: super
+    input: { user_id: uuid }
+    returns: "{ ok: true }"
+    errors: ["You cannot delete yourself."]
+
+  # ---- src/lib/orders.functions.ts ----
+  transitionOrder:
+    file: src/lib/orders.functions.ts
+    method: POST
+    auth: authenticated (state-machine enforces role/assignment/gates)
+    input: { order_id: uuid, target_stage: OrderStage }
+    returns: "{ ok: true }"
+    errors: ["Order not found.", "Transition not allowed."]
+  createWarrantyOrder:
+    file: src/lib/orders.functions.ts
+    method: POST
+    auth: authenticated (origin must be delivered/closed)
+    input: { origin_order_id: uuid }
+    returns: "{ id: string }"
+    errors: ["Order not found.", "Only delivered or closed orders can open a warranty order."]
+  recordBudgetDecision:
+    file: src/lib/orders.functions.ts
+    method: POST
+    auth: administrativo | super
+    input: { order_id: uuid, decision: "approved"|"deferred"|"rejected", deferred_reason?: string(<=500) }
+    behavior: >
+      Sets budgets.decision/decided_at/deferred_reason; sets orders.authorized=true on approved;
+      auto-advances the stage (approved→repair, deferred→on_hold, rejected→closed) via the state machine.
+    returns: "{ ok: true, stage: OrderStage }"
+    errors:
+      - "Only administrativo or super can record the customer decision."
+      - "A deferred decision requires a reason."
+      - "Create the budget first."
+      - "Transition not allowed."
+  notifyCustomer:
+    file: src/lib/orders.functions.ts
+    method: POST
+    auth: administrativo | super
+    input: { order_id: uuid, kind: "decision"|"delivery" }
+    behavior: "Stamps decision_notified_at or delivery_notified_at. Email delivery is deferred (TODO)."
+    returns: "{ ok: true }"
+    errors: ["Only administrativo or super can notify the customer."]
+  deliverOrder:
+    file: src/lib/orders.functions.ts
+    method: POST
+    auth: administrativo | super (balance must be settled or waived)
+    input: { order_id: uuid, received_by: string(1..200) }
+    behavior: "Sets received_by + delivery_at; advances to delivered."
+    returns: "{ ok: true }"
+    errors: ["Order not found.", "Transition not allowed."]
+  closeOrder:
+    file: src/lib/orders.functions.ts
+    method: POST
+    auth: administrativo | super
+    input: { order_id: uuid, closing_notes?: string(<=2000) }
+    behavior: "Sets closing_notes; advances to closed."
+    returns: "{ ok: true }"
+    errors: ["Order not found.", "Transition not allowed."]

@@ -7,52 +7,52 @@
 
 ## 0. Setup: Create Feature Branch (MANDATORY — FIRST STEP)
 
-- [ ] 0.1 Create branch `feature/service-order-flow-fidelity` from `feature/refactor-service-order-domain` (the migration work is not yet on main)
-- [ ] 0.2 Verify current branch
+- [x] 0.1 Create branch `feature/service-order-flow-fidelity` from `feature/refactor-service-order-domain` (the migration work is not yet on main)
+- [x] 0.2 Verify current branch
 
 ## 1. Data: migration + types (backend)
 
-- [ ] 1.1 Add migration `supabase/migrations/<ts>_flow_notifications.sql`: `orders.decision_notified_at`, `orders.delivery_notified_at` (nullable TIMESTAMPTZ)
-- [ ] 1.2 Apply locally (`supabase db reset` then `bun run seed:admin`, or `supabase migration up`) and regenerate `src/integrations/supabase/types.ts`
-- [ ] 1.3 `tsc --noEmit` = 0
+- [x] 1.1 Add migration `supabase/migrations/<ts>_flow_notifications.sql`: `orders.decision_notified_at`, `orders.delivery_notified_at` (nullable TIMESTAMPTZ)
+- [x] 1.2 Apply locally (`supabase db reset` then `bun run seed:admin`, or `supabase migration up`) and regenerate `src/integrations/supabase/types.ts`
+- [x] 1.3 `tsc --noEmit` = 0
 
 ## 2. State machine: stage ownership
 
-- [ ] 2.1 `src/lib/state-machine.ts`: `STAGE_ACTOR_ROLES.budget` += `tecnico`; `evaluation` = `[administrativo]`
+- [x] 2.1 `src/lib/state-machine.ts`: `STAGE_ACTOR_ROLES.budget` += `tecnico`; `evaluation` = `[administrativo]`
 
 ## 3. Server functions (backend — zod + requireSupabaseAuth)
 
-- [ ] 3.1 `recordBudgetDecision({order_id,decision,deferred_reason?})`: set decision/`decided_at`/`deferred_reason`, set `authorized` on approved, auto-advance via `canTransition` (approved→repair, deferred→on_hold, rejected→closed); admin/super only
-- [ ] 3.2 `notifyCustomer({order_id,kind:'decision'|'delivery'})`: stamp the matching column; admin/super only; email TODO comment
-- [ ] 3.3 `deliverOrder({order_id,received_by})`: set `received_by`+`delivery_at`, advance to delivered (balance gate)
-- [ ] 3.4 `closeOrder({order_id,closing_notes})`: set `closing_notes`, advance to closed
-- [ ] 3.5 `tsc` + `eslint` clean
+- [x] 3.1 `recordBudgetDecision({order_id,decision,deferred_reason?})`: set decision/`decided_at`/`deferred_reason`, set `authorized` on approved, auto-advance via `canTransition` (approved→repair, deferred→on_hold, rejected→closed); admin/super only
+- [x] 3.2 `notifyCustomer({order_id,kind:'decision'|'delivery'})`: stamp the matching column; admin/super only; email TODO comment
+- [x] 3.3 `deliverOrder({order_id,received_by})`: set `received_by`+`delivery_at`, advance to delivered (balance gate)
+- [x] 3.4 `closeOrder({order_id,closing_notes})`: set `closing_notes`, advance to closed
+- [x] 3.5 `tsc` + `eslint` clean
 
 ## 4. Frontend: guided order detail
 
-- [ ] 4.1 New `src/components/order-stage-stepper.tsx` (stage timeline; current highlighted, done checked, future dimmed; on_hold↔decision loop)
-- [ ] 4.2 Reorganize `orders/$orderId.tsx`: current-step panel with the owning-role action; past stages read-only/collapsed; future stages locked
-- [ ] 4.3 Decision via `recordBudgetDecision` (remove manual branch buttons); deferred requires reason
-- [ ] 4.4 Notify buttons (decision/delivery) → `notifyCustomer`; toast "notification recorded — email pending"; show "notified at …"
-- [ ] 4.5 Delivery captures `received_by`; close captures `closing_notes`; show `source` + `authorized`
-- [ ] 4.6 `tsc` + `eslint` clean
+- [x] 4.1 New `src/components/order-stage-stepper.tsx` (stage timeline; current highlighted, done checked, future dimmed; on_hold↔decision loop)
+- [x] 4.2 Reorganize `orders/$orderId.tsx`: current-step panel with the owning-role action; past stages read-only/collapsed; future stages locked
+- [x] 4.3 Decision via `recordBudgetDecision` (remove manual branch buttons); deferred requires reason
+- [x] 4.4 Notify buttons (decision/delivery) → `notifyCustomer`; toast "notification recorded — email pending"; show "notified at …"
+- [x] 4.5 Delivery captures `received_by`; close captures `closing_notes`; show `source` + `authorized`
+- [x] 4.6 `tsc` + `eslint` clean
 
 ## 5. Frontend: dashboard pending-action inbox
 
-- [ ] 5.1 `dashboard.tsx`: "pending my action" list by role+stage+assignment (admin / assigned tecnico / super); links to the order
+- [x] 5.1 `dashboard.tsx`: "pending my action" list by role+stage+assignment (admin / assigned tecnico / super); links to the order
 
 ## 6. Frontend: order origin at intake
 
-- [ ] 6.1 `orders/new.tsx`: Origen select → `orders.source`
+- [x] 6.1 `orders/new.tsx`: Origen select → `orders.source`
 
 ## 7. i18n (es/en parity)
 
-- [ ] 7.1 Add keys (origin+options, stepper, notify+email-pending, received_by, delivery, closing, inbox); verify es/en key parity
+- [x] 7.1 Add keys (origin+options, stepper, notify+email-pending, received_by, delivery, closing, inbox); verify es/en key parity
 
 ## 8. Documentation (MANDATORY)
 
-- [ ] 8.1 `docs/data-model.md` §4 (recorded notifications + origin) and §5 if affected
-- [ ] 8.2 `docs/api-spec.yml`: contracts for the 4 new server functions
+- [x] 8.1 `docs/data-model.md` §4 (recorded notifications + origin) and §5 if affected
+- [x] 8.2 `docs/api-spec.yml`: contracts for the 4 new server functions
 
 ## 9. Review/Update tests (MANDATORY)
 
