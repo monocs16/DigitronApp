@@ -1,2 +1,23 @@
 # Set via `supabase link` or replace with your project ref from the Supabase dashboard.
 project_id = "your-project-ref"
+
+# Custom local ports (offset +1000 from the Supabase defaults) so this project's
+# local stack can run alongside another local Supabase project without clashing.
+# `scripts/dev-local.sh` reads the live ports from `supabase status -o env`, so it
+# adapts automatically.
+
+[api]
+port = 55321
+
+[db]
+port = 55322
+shadow_port = 55320
+
+[studio]
+port = 55323
+
+[inbucket]
+port = 55324
+
+[analytics]
+port = 55327
