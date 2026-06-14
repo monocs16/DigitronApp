@@ -1,0 +1,93 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+context: |
+  Tech stack:
+  - Runtime/tooling: Bun, TypeScript (strict), Vite, ESLint + Prettier, Node >= 22 (nodejs_compat)
+  - Frontend: React 19, TanStack Start / Router / React Query, Tailwind CSS v4,
+    Radix UI + shadcn-style components, react-hook-form + zod, i18next (react-i18next),
+    recharts, lucide-react, sonner, jspdf/jspdf-autotable for printable documents
+  - Backend / data: Supabase (PostgreSQL) with SQL migrations and Row Level Security (RLS);
+    @supabase/supabase-js client; TanStack Start server functions deployed on Cloudflare Workers (Wrangler)
+  - Validation contracts shared via zod schemas
+
+  Architecture: Full-stack TypeScript SPA + server functions on Cloudflare Workers.
+  Data access and authorization are enforced in PostgreSQL (Supabase RLS + policies),
+  mirroring the role/permission matrix. Migrations are the source of truth for the schema.
+
+  Conventions: conventional commits; branch naming feature/[ticket-id].
+  All code, comments, documentation, and technical artifacts must be in English.
+
+  Domain: Digitron — electronics/equipment repair-shop service management.
+  Core aggregate is the Service Order (ORDENSERVICIO) linking a Customer (CLIENTE),
+  an Equipment unit (EQUIPO) and an assigned Technician (USUARIO). The order moves through
+  Intake -> Technical Evaluation -> Budget/Approval -> Repair -> Payment -> Close, with a
+  warranty path that opens a new order linked to the original (IdOrdenGarantiaOrigen).
+  Parts (PIEZA) are consumed through ORDENPIEZA against stock. AUDIT_LOG records all data changes.
+  Roles: Cliente, Administrativo, Tecnico, Super — access governed by the module/permission matrix
+  (CONSULTA = read, MODIFICACION = edit, INGRESO = create). See docs/data-model.md.
+
+  Project specs (single source of truth): All artifact creation and implementation MUST follow the
+  project's technical context in docs/. Read and apply these when creating or implementing:
+  - docs/base-standards.md — core principles, TDD, language standards, links to backend/frontend/docs standards
+  - docs/backend-standards.md — data, migrations, RLS, server functions, testing, security (data/server changes)
+  - docs/frontend-standards.md — React, TanStack, UI/UX (frontend changes)
+  - docs/api-spec.yml — API / server-function contracts (create and grow per feature)
+  - docs/data-model.md — domain and data model (single source of truth for entities and access matrix)
+  - docs/documentation-standards.md — docs structure and maintenance
+  For implementation: adopt the relevant agent from ai-specs/agents/ (e.g. backend-developer.md for
+  data/server changes, frontend-developer.md for UI).
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+rules:
+  # Global: apply ai-specs when creating any artifact
+  _global:
+    - Before creating any artifact, read and apply docs/base-standards.md
+    - For data/server-related artifacts, read docs/backend-standards.md and adopt guidelines from ai-specs/agents/backend-developer.md
+    - For frontend-related artifacts, read docs/frontend-standards.md and adopt guidelines from ai-specs/agents/frontend-developer.md
+    - Use docs/api-spec.yml and docs/data-model.md for API and data consistency in specs and tasks
+    - Enforce authorization per the role/permission matrix in docs/data-model.md (Supabase RLS + policies)
+
+  # Rules for change tasks
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - All tasks must include mandatory steps: Create Feature Branch, Review/Update Tests, Run Tests, Manual Testing, Documentation Update
+
+  # Rules for implementation plans and specs
+  spec:
+    - |
+      All implementation plans must include these MANDATORY sections:
+      1. Header with ticket ID and feature name
+      2. Overview
+      3. Architecture Context (data/migrations + RLS, server functions, frontend)
+      4. Implementation Steps (must start with Step 0: Create Feature Branch)
+      5. Implementation Order (numbered list)
+      6. Testing Checklist with mandatory validations
+      7. Error Response Format
+      8. Dependencies
+      9. Notes
+      10. Next Steps After Implementation
+      11. Implementation Verification
+
+  # Data/server implementation rules
+  backend:
+    - |
+      Adopt backend-developer role. Schema changes go through Supabase SQL migrations
+      (source of truth). Authorization is enforced with RLS policies that mirror the
+      role/permission matrix. Branch naming: feature/[ticket-id] (required). Follow TDD.
+    - |
+      MANDATORY steps —
+      Step 0: Create Feature Branch (FIRST).
+      Step N: Write/Update migration(s) and RLS policies.
+      Step N+1: Implement/Update zod-validated server function(s) and data access.
+      Step N+2: Review and update tests; run full suite green.
+      Step N+3: Manual testing against local Supabase; verify RLS for each affected role.
+      Step N+4: Update technical documentation.
+    - |
+      Documentation — data-model changes → docs/data-model.md;
+      API/server-function changes → docs/api-spec.yml; standards changes → relevant *-standards.md; English only.
+    - Error responses must specify JSON bodies and HTTP status mapping.
+    - Verification checklist covers code quality, functionality, testing, RLS/authorization, integration, documentation updates.
