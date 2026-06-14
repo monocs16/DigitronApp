@@ -56,12 +56,8 @@ function UsersPage() {
   });
 
   const createMut = useMutation({
-    mutationFn: (input: {
-      email: string;
-      password: string;
-      full_name: string;
-      role: AppRole;
-    }) => create({ data: input }),
+    mutationFn: (input: { email: string; password: string; full_name: string; role: AppRole }) =>
+      create({ data: input }),
     onSuccess: () => {
       toast.success(t("users.created"));
       qc.invalidateQueries({ queryKey: ["users"] });

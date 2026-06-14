@@ -66,16 +66,10 @@ export const listUsers = createServerFn({ method: "GET" })
   });
 
 /** Replace the user's role with a single role row. */
-async function setUserRole(
-  supabase: ReturnType<typeof getAdmin>,
-  userId: string,
-  role: AppRole,
-) {
+async function setUserRole(supabase: ReturnType<typeof getAdmin>, userId: string, role: AppRole) {
   const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
   if (delErr) throw new Error(delErr.message);
-  const { error: insErr } = await supabase
-    .from("user_roles")
-    .insert({ user_id: userId, role });
+  const { error: insErr } = await supabase.from("user_roles").insert({ user_id: userId, role });
   if (insErr) throw new Error(insErr.message);
 }
 
