@@ -259,6 +259,8 @@ export default {
     method_cash: "Efectivo",
     method_card: "Tarjeta",
     method_transfer: "Transferencia",
+    openWarranty: "Abrir orden de garantía",
+    warrantyCreated: "Orden de garantía creada",
   },
   reports: {
     title: "Reportes",

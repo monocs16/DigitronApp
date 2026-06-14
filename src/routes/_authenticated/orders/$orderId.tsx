@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, useParams, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTechnicians } from "@/hooks/use-technicians";
 import { PageHeader } from "@/components/page-header";
@@ -25,6 +26,7 @@ import {
 import { getStageLabel, getDecisionLabel, type OrderStage } from "@/lib/digitron";
 import { StageBadge } from "@/components/status-badge";
 import { allowedNextStages, type TransitionContext } from "@/lib/state-machine";
+import { transitionOrder, createWarrantyOrder } from "@/lib/orders.functions";
 
 export const Route = createFileRoute("/_authenticated/orders/$orderId")({
   component: OrderDetailPage,
@@ -38,6 +40,9 @@ function OrderDetailPage() {
   const { orderId } = useParams({ from: "/_authenticated/orders/$orderId" });
   const { profile, roles } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const transition = useServerFn(transitionOrder);
+  const openWarranty = useServerFn(createWarrantyOrder);
 
   const isSuper = roles.includes("super");
   const isAdministrativo = roles.includes("administrativo");
@@ -237,12 +242,20 @@ function OrderDetailPage() {
   // ---- Mutations ----
   const changeStage = useMutation({
     mutationFn: async (next: OrderStage) => {
-      const { error } = await supabase.from("orders").update({ stage: next }).eq("id", orderId);
-      if (error) throw error;
+      await transition({ data: { order_id: orderId, target_stage: next } });
     },
     onSuccess: () => {
       toast.success(t("orders.stageUpdated"));
       invalidate("order");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const warrantyOrder = useMutation({
+    mutationFn: async () => openWarranty({ data: { origin_order_id: orderId } }),
+    onSuccess: (res) => {
+      toast.success(t("orders.warrantyCreated"));
+      navigate({ to: "/orders/$orderId", params: { orderId: res.id } });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -895,6 +908,20 @@ function OrderDetailPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </>
+              )}
+
+              {canAssignTech && ["delivered", "closed"].includes(order.stage) && (
+                <>
+                  <Separator />
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={warrantyOrder.isPending}
+                    onClick={() => warrantyOrder.mutate()}
+                  >
+                    {t("orders.openWarranty")}
+                  </Button>
                 </>
               )}
             </CardContent>

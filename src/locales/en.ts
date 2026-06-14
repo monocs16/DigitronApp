@@ -259,6 +259,8 @@ export default {
     method_cash: "Cash",
     method_card: "Card",
     method_transfer: "Transfer",
+    openWarranty: "Open warranty order",
+    warrantyCreated: "Warranty order created",
   },
   reports: {
     title: "Reports",

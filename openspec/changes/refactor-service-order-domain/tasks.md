@@ -65,11 +65,11 @@
 
 ## 7. Service order workflow
 
-- [ ] 7.1 `orders.functions.ts` (list/get/create/transition) enforcing state-machine + gates server-side
+- [x] 7.1 `orders.functions.ts` (list/get/create/transition) enforcing state-machine + gates server-side
 - [x] 7.2 Rework `orders/new.tsx` (Apertura): customer + equipment + technician assignment
-- [ ] 7.3 Rework `orders/index.tsx`: filter by stage, role-scoped (tecnico sees assigned)
+- [x] 7.3 Rework `orders/index.tsx`: filter by stage, role-scoped (tecnico sees assigned)
 - [x] 7.4 Rebuild `orders/$orderId.tsx` as a stage-driven hub with sections: summary, evaluation, budget, repair, payments, history, and stage-aware action buttons
-- [ ] 7.5 Warranty: "open warranty order" action creating a linked order (`warranty_origin_id`) reusing customer/equipment
+- [x] 7.5 Warranty: "open warranty order" action creating a linked order (`warranty_origin_id`) reusing customer/equipment
 - [ ] 7.6 Manual verification: walk an order through each path — Approved, Deferred (hold→return), Rejected, and Warranty
 
 ## 8. Technical evaluation
