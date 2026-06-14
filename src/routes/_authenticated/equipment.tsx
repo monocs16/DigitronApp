@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, ClipboardList } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { canCreate, canEdit } from "@/lib/access";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,22 +25,29 @@ type EquipmentRow = {
   brand: string;
   model: string;
   serial_number: string | null;
+  accessories: string | null;
+  purchase_invoice: string | null;
+  purchase_store: string | null;
+  purchase_date: string | null;
   client_id: string;
-  clients: { name: string } | null;
+  customers: { name: string } | null;
 };
 
 function EquipmentPage() {
   const { t } = useTranslation();
-  const { profile } = useAuth();
+  const { roles } = useAuth();
   const qc = useQueryClient();
-  const isAdmin = profile?.role === "admin";
+  const mayCreate = canCreate(roles, "equipo");
+  const mayEdit = canEdit(roles, "equipo");
 
   const { data: equipment = [], isLoading } = useQuery({
     queryKey: ["equipment"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("equipment")
-        .select("id, type, brand, model, serial_number, client_id, clients(name)")
+        .select(
+          "id, type, brand, model, serial_number, accessories, purchase_invoice, purchase_store, purchase_date, client_id, customers(name)",
+        )
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as unknown as EquipmentRow[];
@@ -64,15 +72,17 @@ function EquipmentPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("equipmentPage.title")} subtitle={t("equipmentPage.subtitle")}>
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          {t("equipmentPage.newEquipment")}
-        </Button>
+        {mayCreate && (
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {t("equipmentPage.newEquipment")}
+          </Button>
+        )}
       </PageHeader>
 
       <Card>
@@ -106,7 +116,7 @@ function EquipmentPage() {
                       {e.serial_number ?? t("common.noData")}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {e.clients?.name ?? t("common.noData")}
+                      {e.customers?.name ?? t("common.noData")}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="icon" title={t("common.viewOrders")}>
@@ -114,17 +124,19 @@ function EquipmentPage() {
                           <ClipboardList className="h-4 w-4" />
                         </Link>
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditing(e);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {isAdmin && (
+                      {mayEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditing(e);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {mayEdit && (
                         <DeleteConfirmButton
                           title={t("equipmentPage.deleteTitle")}
                           description={t("common.cannotUndo")}

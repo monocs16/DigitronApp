@@ -7,113 +7,213 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
       audit_log: {
         Row: {
-          action: string
-          created_at: string
-          field_changed: string | null
-          id: string
+          app_user: string | null
+          change_ts: string
+          changed_fields: Json | null
+          column_name: string | null
+          db_user: string | null
+          full_row_new: Json | null
+          full_row_old: Json | null
+          id: number
           new_value: string | null
           old_value: string | null
-          order_id: string
-          user_id: string | null
+          operation: string
+          record_pk: Json | null
+          schema_name: string
+          table_name: string
         }
         Insert: {
-          action: string
-          created_at?: string
-          field_changed?: string | null
-          id?: string
+          app_user?: string | null
+          change_ts?: string
+          changed_fields?: Json | null
+          column_name?: string | null
+          db_user?: string | null
+          full_row_new?: Json | null
+          full_row_old?: Json | null
+          id?: never
           new_value?: string | null
           old_value?: string | null
-          order_id: string
-          user_id?: string | null
+          operation: string
+          record_pk?: Json | null
+          schema_name: string
+          table_name: string
         }
         Update: {
-          action?: string
-          created_at?: string
-          field_changed?: string | null
-          id?: string
+          app_user?: string | null
+          change_ts?: string
+          changed_fields?: Json | null
+          column_name?: string | null
+          db_user?: string | null
+          full_row_new?: Json | null
+          full_row_old?: Json | null
+          id?: never
           new_value?: string | null
           old_value?: string | null
+          operation?: string
+          record_pk?: Json | null
+          schema_name?: string
+          table_name?: string
+        }
+        Relationships: []
+      }
+      budgets: {
+        Row: {
+          advances: number
+          budgeted_at: string
+          customer_comments: string | null
+          decided_at: string | null
+          decision: Database["public"]["Enums"]["budget_decision"] | null
+          deferred_reason: string | null
+          freight_cost: number
+          id: string
+          labor_cost: number
+          order_id: string
+          other_charges: number
+          parts_cost: number
+          updated_at: string
+        }
+        Insert: {
+          advances?: number
+          budgeted_at?: string
+          customer_comments?: string | null
+          decided_at?: string | null
+          decision?: Database["public"]["Enums"]["budget_decision"] | null
+          deferred_reason?: string | null
+          freight_cost?: number
+          id?: string
+          labor_cost?: number
+          order_id: string
+          other_charges?: number
+          parts_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          advances?: number
+          budgeted_at?: string
+          customer_comments?: string | null
+          decided_at?: string | null
+          decision?: Database["public"]["Enums"]["budget_decision"] | null
+          deferred_reason?: string | null
+          freight_cost?: number
+          id?: string
+          labor_cost?: number
           order_id?: string
-          user_id?: string | null
+          other_charges?: number
+          parts_cost?: number
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "audit_log_order_id_fkey"
+            foreignKeyName: "budgets_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "audit_log_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
         ]
       }
-      clients: {
+      customers: {
         Row: {
-          created_at: string
+          address: string | null
           email: string | null
           id: string
           name: string
-          phone: string | null
+          phone1: string | null
+          phone2: string | null
+          registered_at: string
+          tax_id: string | null
           updated_at: string
         }
         Insert: {
-          created_at?: string
+          address?: string | null
           email?: string | null
           id?: string
           name: string
-          phone?: string | null
+          phone1?: string | null
+          phone2?: string | null
+          registered_at?: string
+          tax_id?: string | null
           updated_at?: string
         }
         Update: {
-          created_at?: string
+          address?: string | null
           email?: string | null
           id?: string
           name?: string
-          phone?: string | null
+          phone1?: string | null
+          phone2?: string | null
+          registered_at?: string
+          tax_id?: string | null
           updated_at?: string
         }
         Relationships: []
       }
       equipment: {
         Row: {
+          accessories: string | null
           brand: string
           client_id: string
           created_at: string
           id: string
           model: string
+          purchase_date: string | null
+          purchase_invoice: string | null
+          purchase_store: string | null
           serial_number: string | null
           type: string
         }
         Insert: {
+          accessories?: string | null
           brand: string
           client_id: string
           created_at?: string
           id?: string
           model: string
+          purchase_date?: string | null
+          purchase_invoice?: string | null
+          purchase_store?: string | null
           serial_number?: string | null
           type: string
         }
         Update: {
+          accessories?: string | null
           brand?: string
           client_id?: string
           created_at?: string
           id?: string
           model?: string
+          purchase_date?: string | null
+          purchase_invoice?: string | null
+          purchase_store?: string | null
           serial_number?: string | null
           type?: string
         }
@@ -122,7 +222,68 @@ export type Database = {
             foreignKeyName: "equipment_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
-            referencedRelation: "clients"
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_parts: {
+        Row: {
+          created_at: string
+          evaluation_id: string | null
+          id: string
+          in_stock_at_registration: boolean
+          order_id: string
+          part_id: string
+          quantity: number
+          stage: string
+          supplier_part_number: string | null
+          unit_cost_at_registration: number
+        }
+        Insert: {
+          created_at?: string
+          evaluation_id?: string | null
+          id?: string
+          in_stock_at_registration?: boolean
+          order_id: string
+          part_id: string
+          quantity: number
+          stage?: string
+          supplier_part_number?: string | null
+          unit_cost_at_registration?: number
+        }
+        Update: {
+          created_at?: string
+          evaluation_id?: string | null
+          id?: string
+          in_stock_at_registration?: boolean
+          order_id?: string
+          part_id?: string
+          quantity?: number
+          stage?: string
+          supplier_part_number?: string | null
+          unit_cost_at_registration?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_parts_evaluation_id_fkey"
+            columns: ["evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "technical_evaluations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_parts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_parts_part_id_fkey"
+            columns: ["part_id"]
+            isOneToOne: false
+            referencedRelation: "parts"
             referencedColumns: ["id"]
           },
         ]
@@ -168,56 +329,81 @@ export type Database = {
       }
       orders: {
         Row: {
+          authorized: boolean
+          balance_waived: boolean
           client_id: string
+          closing_notes: string | null
           created_at: string
+          created_by: string | null
+          delivery_at: string | null
           equipment_id: string
-          estimated_cost: number | null
-          final_cost: number | null
+          general_notes: string | null
           id: string
-          notes: string | null
+          intake_at: string
           order_number: string
-          part_waiting_for: string | null
-          problem_description: string
-          status: Database["public"]["Enums"]["order_status"]
+          received_by: string | null
+          reported_fault: string
+          source: string | null
+          stage: Database["public"]["Enums"]["order_stage"]
           technician_id: string | null
           updated_at: string
+          warranty_origin_id: string | null
         }
         Insert: {
+          authorized?: boolean
+          balance_waived?: boolean
           client_id: string
+          closing_notes?: string | null
           created_at?: string
+          created_by?: string | null
+          delivery_at?: string | null
           equipment_id: string
-          estimated_cost?: number | null
-          final_cost?: number | null
+          general_notes?: string | null
           id?: string
-          notes?: string | null
+          intake_at?: string
           order_number?: string
-          part_waiting_for?: string | null
-          problem_description: string
-          status?: Database["public"]["Enums"]["order_status"]
+          received_by?: string | null
+          reported_fault: string
+          source?: string | null
+          stage?: Database["public"]["Enums"]["order_stage"]
           technician_id?: string | null
           updated_at?: string
+          warranty_origin_id?: string | null
         }
         Update: {
+          authorized?: boolean
+          balance_waived?: boolean
           client_id?: string
+          closing_notes?: string | null
           created_at?: string
+          created_by?: string | null
+          delivery_at?: string | null
           equipment_id?: string
-          estimated_cost?: number | null
-          final_cost?: number | null
+          general_notes?: string | null
           id?: string
-          notes?: string | null
+          intake_at?: string
           order_number?: string
-          part_waiting_for?: string | null
-          problem_description?: string
-          status?: Database["public"]["Enums"]["order_status"]
+          received_by?: string | null
+          reported_fault?: string
+          source?: string | null
+          stage?: Database["public"]["Enums"]["order_stage"]
           technician_id?: string | null
           updated_at?: string
+          warranty_origin_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "orders_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
-            referencedRelation: "clients"
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -234,26 +420,228 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "orders_warranty_origin_id_fkey"
+            columns: ["warranty_origin_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parts: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          part_code: string
+          stock: number
+          supplier: string | null
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          part_code: string
+          stock?: number
+          supplier?: string | null
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          part_code?: string
+          stock?: number
+          supplier?: string | null
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          id: string
+          method: string
+          order_id: string
+          paid_at: string
+          reference: string | null
+          registered_by: string | null
+        }
+        Insert: {
+          amount: number
+          id?: string
+          method: string
+          order_id: string
+          paid_at?: string
+          reference?: string | null
+          registered_by?: string | null
+        }
+        Update: {
+          amount?: number
+          id?: string
+          method?: string
+          order_id?: string
+          paid_at?: string
+          reference?: string | null
+          registered_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_registered_by_fkey"
+            columns: ["registered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
         Row: {
+          active: boolean
           created_at: string
+          email: string | null
           full_name: string
           id: string
-          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      repairs: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          id: string
+          order_id: string
+          started_at: string | null
+          state: string
+          technician_id: string | null
+          updated_at: string
+          work_description: string | null
         }
         Insert: {
           created_at?: string
-          full_name?: string
-          id: string
-          role?: Database["public"]["Enums"]["app_role"]
+          finished_at?: string | null
+          id?: string
+          order_id: string
+          started_at?: string | null
+          state?: string
+          technician_id?: string | null
+          updated_at?: string
+          work_description?: string | null
         }
         Update: {
           created_at?: string
-          full_name?: string
+          finished_at?: string | null
+          id?: string
+          order_id?: string
+          started_at?: string | null
+          state?: string
+          technician_id?: string | null
+          updated_at?: string
+          work_description?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repairs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "repairs_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      technical_evaluations: {
+        Row: {
+          diagnosis: string
+          evaluated_at: string
+          id: string
+          order_id: string
+          technical_notes: string | null
+          technician_id: string | null
+        }
+        Insert: {
+          diagnosis: string
+          evaluated_at?: string
+          id?: string
+          order_id: string
+          technical_notes?: string | null
+          technician_id?: string | null
+        }
+        Update: {
+          diagnosis?: string
+          evaluated_at?: string
+          id?: string
+          order_id?: string
+          technical_notes?: string | null
+          technician_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technical_evaluations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technical_evaluations_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -262,6 +650,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_any_role: {
+        Args: { _roles: Database["public"]["Enums"]["app_role"][] }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -271,16 +663,18 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "technician"
-      order_status:
-        | "received"
-        | "diagnosis"
+      app_role: "cliente" | "administrativo" | "tecnico" | "super"
+      budget_decision: "approved" | "deferred" | "rejected"
+      order_stage:
+        | "intake"
+        | "evaluation"
+        | "budget"
+        | "customer_decision"
+        | "on_hold"
         | "repair"
-        | "waiting_part"
-        | "ready"
+        | "payment"
         | "delivered"
         | "closed"
-        | "warranty"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -406,19 +800,25 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
-      app_role: ["admin", "technician"],
-      order_status: [
-        "received",
-        "diagnosis",
+      app_role: ["cliente", "administrativo", "tecnico", "super"],
+      budget_decision: ["approved", "deferred", "rejected"],
+      order_stage: [
+        "intake",
+        "evaluation",
+        "budget",
+        "customer_decision",
+        "on_hold",
         "repair",
-        "waiting_part",
-        "ready",
+        "payment",
         "delivered",
         "closed",
-        "warranty",
       ],
     },
   },
 } as const
+

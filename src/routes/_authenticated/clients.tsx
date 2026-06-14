@@ -6,32 +6,34 @@ import { toast } from "sonner";
 import { Plus, Pencil, ClipboardList } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { canCreate, canEdit } from "@/lib/access";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { AsyncCardBody } from "@/components/async-card-body";
 import { DeleteConfirmButton } from "@/components/delete-confirm-button";
-import { ClientFormDialog } from "@/components/client-form-dialog";
+import { ClientFormDialog, type ClientEditing } from "@/components/client-form-dialog";
 
 export const Route = createFileRoute("/_authenticated/clients")({
   component: ClientsPage,
 });
 
-type ClientRow = { id: string; name: string; phone: string | null; email: string | null };
+type ClientRow = ClientEditing;
 
 function ClientsPage() {
   const { t } = useTranslation();
-  const { profile } = useAuth();
+  const { roles } = useAuth();
   const qc = useQueryClient();
-  const isAdmin = profile?.role === "admin";
+  const mayCreate = canCreate(roles, "clientes");
+  const mayEdit = canEdit(roles, "clientes");
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ["clients"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("clients")
-        .select("id, name, phone, email")
+        .from("customers")
+        .select("id, name, tax_id, phone1, phone2, email, address")
         .order("name");
       if (error) throw error;
       return data as ClientRow[];
@@ -43,7 +45,7 @@ function ClientsPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("clients").delete().eq("id", id);
+      const { error } = await supabase.from("customers").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -56,15 +58,17 @@ function ClientsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("clients.title")} subtitle={t("clients.subtitle")}>
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          {t("clients.newClient")}
-        </Button>
+        {mayCreate && (
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {t("clients.newClient")}
+          </Button>
+        )}
       </PageHeader>
 
       <Card>
@@ -81,7 +85,8 @@ function ClientsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("common.name")}</TableHead>
-                  <TableHead>{t("common.phone")}</TableHead>
+                  <TableHead>{t("clients.taxId")}</TableHead>
+                  <TableHead>{t("clients.phone1")}</TableHead>
                   <TableHead>{t("common.email")}</TableHead>
                   <TableHead className="w-[120px] text-right">{t("common.actions")}</TableHead>
                 </TableRow>
@@ -90,7 +95,8 @@ function ClientsPage() {
                 {clients.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{c.phone ?? t("common.noData")}</TableCell>
+                    <TableCell>{c.tax_id ?? t("common.noData")}</TableCell>
+                    <TableCell>{c.phone1 ?? t("common.noData")}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.email ?? t("common.noData")}
                     </TableCell>
@@ -100,17 +106,19 @@ function ClientsPage() {
                           <ClipboardList className="h-4 w-4" />
                         </Link>
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditing(c);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {isAdmin && (
+                      {mayEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditing(c);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {mayEdit && (
                         <DeleteConfirmButton
                           title={t("clients.deleteTitle")}
                           description={t("clients.deleteDescription")}
@@ -126,11 +134,7 @@ function ClientsPage() {
         </CardContent>
       </Card>
 
-      <ClientFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        editing={editing}
-      />
+      <ClientFormDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} />
     </div>
   );
 }

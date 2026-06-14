@@ -1,45 +1,49 @@
 import type { TFunction } from "i18next";
 
-export const STATUS_ORDER = [
-  "received",
-  "diagnosis",
+// ============ ROLES ============
+export const APP_ROLES = ["cliente", "administrativo", "tecnico", "super"] as const;
+export type AppRole = (typeof APP_ROLES)[number];
+
+// ============ ORDER WORKFLOW STAGES (BPMN) ============
+export const STAGE_ORDER = [
+  "intake",
+  "evaluation",
+  "budget",
+  "customer_decision",
+  "on_hold",
   "repair",
-  "waiting_part",
-  "ready",
+  "payment",
   "delivered",
   "closed",
-  "warranty",
 ] as const;
 
-export type OrderStatus = (typeof STATUS_ORDER)[number];
+export type OrderStage = (typeof STAGE_ORDER)[number];
 
-// Which role is allowed to set each target status (per BR §4.3)
-export const STATUS_ROLE: Record<OrderStatus, "admin" | "technician"> = {
-  received: "admin",
-  diagnosis: "technician",
-  repair: "technician",
-  waiting_part: "technician",
-  ready: "technician",
-  delivered: "admin",
-  closed: "admin",
-  warranty: "admin",
+// ============ BUDGET DECISION ============
+export const BUDGET_DECISIONS = ["approved", "deferred", "rejected"] as const;
+export type BudgetDecision = (typeof BUDGET_DECISIONS)[number];
+
+// Visual token per stage (maps to semantic classes / badge variants).
+export const STAGE_TOKEN: Record<OrderStage, string> = {
+  intake: "stage-intake",
+  evaluation: "stage-evaluation",
+  budget: "stage-budget",
+  customer_decision: "stage-decision",
+  on_hold: "stage-hold",
+  repair: "stage-repair",
+  payment: "stage-payment",
+  delivered: "stage-delivered",
+  closed: "stage-closed",
 };
 
-export const STATUS_TOKEN: Record<OrderStatus, string> = {
-  received: "status-received",
-  diagnosis: "status-diagnosis",
-  repair: "status-repair",
-  waiting_part: "status-waiting",
-  ready: "status-ready",
-  delivered: "status-delivered",
-  closed: "status-closed",
-  warranty: "status-warranty",
-};
-
-export function getStatusLabel(status: OrderStatus | string, t: TFunction): string {
-  return t(`status.${status}`, { defaultValue: String(status) });
+export function getStageLabel(stage: OrderStage | string, t: TFunction): string {
+  return t(`stage.${stage}`, { defaultValue: String(stage) });
 }
 
-export function getRoleLabel(role: "admin" | "technician" | string, t: TFunction): string {
+export function getRoleLabel(role: AppRole | string, t: TFunction): string {
   return t(`roles.${role}`, { defaultValue: String(role) });
+}
+
+export function getDecisionLabel(decision: BudgetDecision | string, t: TFunction): string {
+  return t(`decision.${decision}`, { defaultValue: String(decision) });
 }

@@ -43,3 +43,7 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+tmp/
+.worktrees/
+.mcp.json
+supabase/.branches/

@@ -23,12 +23,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type EquipmentEditing = {
+export type EquipmentEditing = {
   id: string;
   type: string;
   brand: string;
   model: string;
   serial_number: string | null;
+  accessories: string | null;
+  purchase_invoice: string | null;
+  purchase_store: string | null;
+  purchase_date: string | null;
   client_id: string;
 };
 
@@ -43,7 +47,17 @@ interface EquipmentFormDialogProps {
   onSuccess?: (id: string) => void;
 }
 
-const EMPTY_FORM = { type: "", brand: "", model: "", serial_number: "", client_id: "" };
+const EMPTY_FORM = {
+  type: "",
+  brand: "",
+  model: "",
+  serial_number: "",
+  accessories: "",
+  purchase_invoice: "",
+  purchase_store: "",
+  purchase_date: "",
+  client_id: "",
+};
 
 export function EquipmentFormDialog({
   open,
@@ -66,6 +80,10 @@ export function EquipmentFormDialog({
           brand: editing.brand,
           model: editing.model,
           serial_number: editing.serial_number ?? "",
+          accessories: editing.accessories ?? "",
+          purchase_invoice: editing.purchase_invoice ?? "",
+          purchase_store: editing.purchase_store ?? "",
+          purchase_date: editing.purchase_date ?? "",
           client_id: editing.client_id,
         });
       } else {
@@ -85,6 +103,10 @@ export function EquipmentFormDialog({
         brand: form.brand.trim(),
         model: form.model.trim(),
         serial_number: form.serial_number.trim() || null,
+        accessories: form.accessories.trim() || null,
+        purchase_invoice: form.purchase_invoice.trim() || null,
+        purchase_store: form.purchase_store.trim() || null,
+        purchase_date: form.purchase_date || null,
       };
       if (editing) {
         const { error } = await supabase.from("equipment").update(payload).eq("id", editing.id);
@@ -173,6 +195,39 @@ export function EquipmentFormDialog({
                 id="eq-serial"
                 value={form.serial_number}
                 onChange={(e) => setForm({ ...form, serial_number: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="eq-accessories">{t("equipmentPage.accessories")}</Label>
+              <Input
+                id="eq-accessories"
+                value={form.accessories}
+                onChange={(e) => setForm({ ...form, accessories: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eq-invoice">{t("equipmentPage.purchaseInvoice")}</Label>
+              <Input
+                id="eq-invoice"
+                value={form.purchase_invoice}
+                onChange={(e) => setForm({ ...form, purchase_invoice: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eq-store">{t("equipmentPage.purchaseStore")}</Label>
+              <Input
+                id="eq-store"
+                value={form.purchase_store}
+                onChange={(e) => setForm({ ...form, purchase_store: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eq-pdate">{t("equipmentPage.purchaseDate")}</Label>
+              <Input
+                id="eq-pdate"
+                type="date"
+                value={form.purchase_date}
+                onChange={(e) => setForm({ ...form, purchase_date: e.target.value })}
               />
             </div>
           </div>

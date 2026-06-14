@@ -1,18 +1,22 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import type { AppRole } from "@/lib/digitron";
 
 export type Profile = {
   id: string;
   full_name: string;
-  role: "admin" | "technician";
+  email: string | null;
+  active: boolean;
 };
 
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
+  roles: AppRole[];
   loading: boolean;
+  hasRole: (role: AppRole) => boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -22,15 +26,16 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (uid: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, full_name, role")
-      .eq("id", uid)
-      .maybeSingle();
-    setProfile((data as Profile | null) ?? null);
+    const [{ data: profileRow }, { data: roleRows }] = await Promise.all([
+      supabase.from("profiles").select("id, full_name, email, active").eq("id", uid).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", uid),
+    ]);
+    setProfile((profileRow as Profile | null) ?? null);
+    setRoles((roleRows ?? []).map((r) => r.role as AppRole));
   }, []);
 
   useEffect(() => {
@@ -43,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await loadProfile(data.session.user.id);
       } else {
         setProfile(null);
+        setRoles([]);
       }
       if (active) setLoading(false);
     });
@@ -54,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(() => void loadProfile(newSession.user.id), 0);
       } else {
         setProfile(null);
+        setRoles([]);
       }
     });
 
@@ -71,13 +78,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (session?.user) await loadProfile(session.user.id);
   };
 
+  const hasRole = useCallback((role: AppRole) => roles.includes(role), [roles]);
+
   return (
     <AuthContext.Provider
       value={{
         session,
         user: session?.user ?? null,
         profile,
+        roles,
         loading,
+        hasRole,
         signOut,
         refreshProfile,
       }}

@@ -11,6 +11,7 @@ import {
   PlusCircle,
   UserCog,
   Settings,
+  Package,
 } from "lucide-react";
 import {
   Sidebar,
@@ -28,58 +29,39 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { getRoleLabel } from "@/lib/digitron";
+import { canRead, type ModuleKey } from "@/lib/access";
+import type { AppRole } from "@/lib/digitron";
 
-type Role = "admin" | "technician";
+// Each nav item maps to a permission module; `null` means always visible to authenticated users.
 const ALL_ITEMS: {
   titleKey: string;
   url: string;
   icon: typeof LayoutDashboard;
-  roles: Role[];
+  module: ModuleKey | null;
 }[] = [
-  {
-    titleKey: "sidebar.dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-    roles: ["admin", "technician"],
-  },
-  {
-    titleKey: "sidebar.orders",
-    url: "/orders",
-    icon: ClipboardList,
-    roles: ["admin", "technician"],
-  },
-  {
-    titleKey: "sidebar.newOrder",
-    url: "/orders/new",
-    icon: PlusCircle,
-    roles: ["admin", "technician"],
-  },
-  { titleKey: "sidebar.clients", url: "/clients", icon: Users, roles: ["admin", "technician"] },
-  {
-    titleKey: "sidebar.equipment",
-    url: "/equipment",
-    icon: Wrench,
-    roles: ["admin", "technician"],
-  },
-  { titleKey: "sidebar.reports", url: "/reports", icon: FileBarChart, roles: ["admin"] },
-  { titleKey: "sidebar.users", url: "/usuarios", icon: UserCog, roles: ["admin"] },
-  {
-    titleKey: "sidebar.settings",
-    url: "/configuracion",
-    icon: Settings,
-    roles: ["admin", "technician"],
-  },
+  { titleKey: "sidebar.dashboard", url: "/dashboard", icon: LayoutDashboard, module: "tablero" },
+  { titleKey: "sidebar.orders", url: "/orders", icon: ClipboardList, module: "os_evaluacion" },
+  { titleKey: "sidebar.newOrder", url: "/orders/new", icon: PlusCircle, module: "os_apertura" },
+  { titleKey: "sidebar.clients", url: "/clients", icon: Users, module: "clientes" },
+  { titleKey: "sidebar.equipment", url: "/equipment", icon: Wrench, module: "equipo" },
+  { titleKey: "sidebar.inventory", url: "/inventory", icon: Package, module: "inventario" },
+  { titleKey: "sidebar.reports", url: "/reports", icon: FileBarChart, module: "reportes" },
+  { titleKey: "sidebar.users", url: "/usuarios", icon: UserCog, module: "seguridad" },
+  { titleKey: "sidebar.settings", url: "/configuracion", icon: Settings, module: null },
 ];
+
+function visibleFor(roles: AppRole[]) {
+  return ALL_ITEMS.filter((i) => i.module === null || canRead(roles, i.module));
+}
 
 export function AppSidebar() {
   const { t } = useTranslation();
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
-  const { profile, signOut } = useAuth();
+  const { profile, roles, signOut } = useAuth();
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
-  const role = profile?.role ?? "technician";
 
-  const items = ALL_ITEMS.filter((i) => i.roles.includes(role));
+  const items = visibleFor(roles);
   const isActive = (path: string) => {
     if (path === "/dashboard") return currentPath === path;
     const hasMoreSpecificMatch = items.some(
@@ -132,7 +114,9 @@ export function AppSidebar() {
         {!collapsed && profile && (
           <div className="px-2 pb-2">
             <p className="truncate text-sm font-medium">{profile.full_name}</p>
-            <p className="text-xs text-muted-foreground">{getRoleLabel(profile.role, t)}</p>
+            <p className="text-xs text-muted-foreground">
+              {roles.map((r) => getRoleLabel(r, t)).join(", ")}
+            </p>
           </div>
         )}
         <div className="flex items-center gap-1 px-1 pb-1">
