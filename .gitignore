@@ -51,3 +51,5 @@ supabase/.branches/
 # Playwright auth storage state (session tokens — never commit)
 e2e/fixtures/*.json
 e2e/results/
+# Vercel build output (generated — not the vercel.json config)
+.vercel/output

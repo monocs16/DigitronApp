@@ -16,6 +16,7 @@
     "supabase:reset": "supabase db reset && bun run seed:admin",
     "seed:admin": "bash -c 'eval \"$(supabase status -o env)\"; API_URL=\"$API_URL\" SERVICE_ROLE_KEY=\"$SERVICE_ROLE_KEY\" node scripts/seed-admin.mjs'",
     "build": "CF_WORKERS=1 bun --bun vite build",
+    "build:vercel": "DEPLOY_TARGET=vercel bun --bun vite build && node scripts/build-vercel.mjs",
     "build:dev": "bun --bun vite build --mode development",
     "preview": "CF_WORKERS=1 bun --bun vite preview",
     "test:unit": "bun --bun vitest run",
