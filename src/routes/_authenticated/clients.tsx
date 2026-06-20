@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus, Pencil, ClipboardList } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { customersRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
 import { Button } from "@/components/ui/button";
@@ -37,24 +37,14 @@ function ClientsPage() {
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ["clients"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, tax_id, phone1, phone2, email, address")
-        .order("name");
-      if (error) throw error;
-      return data as ClientRow[];
-    },
+    queryFn: () => customersRepository.getAll() as Promise<ClientRow[]>,
   });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ClientRow | null>(null);
 
   const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("customers").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => customersRepository.delete(id),
     onSuccess: () => {
       toast.success(t("clients.deleted"));
       qc.invalidateQueries({ queryKey: ["clients"] });

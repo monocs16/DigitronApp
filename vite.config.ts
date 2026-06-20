@@ -24,9 +24,7 @@ export default defineConfig({
     host: true,
   },
   plugins: [
-    ...(useCloudflare
-      ? [cloudflare({ viteEnvironment: { name: "ssr" } })]
-      : []),
+    ...(useCloudflare ? [cloudflare({ viteEnvironment: { name: "ssr" } })] : []),
     tanstackStart({
       server: { entry: "server" },
     }),

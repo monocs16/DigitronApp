@@ -278,7 +278,8 @@ export default {
     openWarranty: "Abrir orden de garantía",
     warrantyCreated: "Orden de garantía creada",
     confirmReject: "¿Rechazar esta orden?",
-    confirmRejectDesc: "El cliente declinó la reparación. La orden quedará cerrada permanentemente.",
+    confirmRejectDesc:
+      "El cliente declinó la reparación. La orden quedará cerrada permanentemente.",
     confirmClose: "¿Cerrar esta orden?",
     confirmCloseDesc: "Cerrar marca la orden como finalizada y no se requieren más cambios.",
     confirmWaive: "¿Condonar el saldo pendiente?",

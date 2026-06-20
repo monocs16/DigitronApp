@@ -12,7 +12,7 @@ import { ClientFormDialog } from "@/components/client-form-dialog";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { equipmentRepository, ordersRepository } from "@/lib/repositories";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,34 +80,20 @@ function NewOrderPage() {
   const { data: equipment = [] } = useQuery({
     queryKey: ["equipment-by-client", clientId],
     enabled: !!clientId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("equipment")
-        .select("id, brand, model, type")
-        .eq("client_id", clientId);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => equipmentRepository.getByClientId(clientId),
   });
 
   const { data: techs = [] } = useTechnicians();
 
   const createOrder = useMutation({
-    mutationFn: async (values: NewOrderValues) => {
-      const { data, error } = await supabase
-        .from("orders")
-        .insert({
-          client_id: values.clientId,
-          equipment_id: values.equipmentId,
-          reported_fault: values.problem.trim(),
-          source: values.source,
-          technician_id: values.technicianId === "none" ? null : values.technicianId,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (values: NewOrderValues) =>
+      ordersRepository.create({
+        client_id: values.clientId,
+        equipment_id: values.equipmentId,
+        reported_fault: values.problem.trim(),
+        source: values.source,
+        technician_id: values.technicianId === "none" ? null : values.technicianId,
+      }),
     onSuccess: (data) => {
       toast.success(t("orders.created"));
       navigate({ to: "/orders/$orderId", params: { orderId: data.id } });
@@ -118,7 +104,7 @@ function NewOrderPage() {
   const onSubmit = form.handleSubmit((values) => createOrder.mutate(values));
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <PageHeader title={t("orders.newTitle")} subtitle={t("orders.newSubtitle")} />
 
       <Card>
@@ -186,11 +172,7 @@ function NewOrderPage() {
                         {t("equipmentPage.newEquipment")}
                       </Button>
                     </div>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={!clientId}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!clientId}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue

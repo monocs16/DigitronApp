@@ -8,11 +8,7 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "digitron123";
 const TECH_EMAIL = process.env.E2E_TECH_EMAIL ?? "tech@digitron.test";
 const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? "digitron123";
 
-async function loginAndSave(
-  email: string,
-  password: string,
-  stateFile: string,
-): Promise<void> {
+async function loginAndSave(email: string, password: string, stateFile: string): Promise<void> {
   const browser = await chromium.launch();
   const page = await browser.newPage();
 

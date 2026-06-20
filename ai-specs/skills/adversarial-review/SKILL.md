@@ -89,18 +89,21 @@ Use this structure in chat:
 **Sources**: <list spec paths + PR or diff reference>
 
 ### Spec and task alignment
+
 - ...
 
 ### Findings
 
-| Severity | Area | Finding | Evidence | Suggested fix (code / spec / tests) |
-|----------|------|---------|----------|--------------------------------------|
-| Blocker / Major / Minor | | | | |
+| Severity                | Area | Finding | Evidence | Suggested fix (code / spec / tests) |
+| ----------------------- | ---- | ------- | -------- | ----------------------------------- |
+| Blocker / Major / Minor |      |         |          |                                     |
 
 ### Verdict
+
 PASS | PASS WITH GAPS | FAIL
 
 ### Recommended next steps (before archive)
+
 - ...
 ```
 

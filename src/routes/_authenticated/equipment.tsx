@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus, Pencil, ClipboardList, Search } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { equipmentRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
 import { Button } from "@/components/ui/button";
@@ -53,16 +53,7 @@ function EquipmentPage() {
 
   const { data: equipment = [], isLoading } = useQuery({
     queryKey: ["equipment"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("equipment")
-        .select(
-          "id, type, brand, model, serial_number, accessories, purchase_invoice, purchase_store, purchase_date, client_id, customers(name)",
-        )
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as unknown as EquipmentRow[];
-    },
+    queryFn: () => equipmentRepository.getAll() as Promise<EquipmentRow[]>,
   });
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -74,23 +65,11 @@ function EquipmentPage() {
   const { data: history = [], isFetching: historyLoading } = useQuery({
     queryKey: ["equipment-history", searchedSerial],
     enabled: searchedSerial.length > 0,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("equipment")
-        .select(
-          "id, type, brand, model, serial_number, customers(name), orders(id, order_number, stage, intake_at)",
-        )
-        .ilike("serial_number", `%${searchedSerial}%`);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => equipmentRepository.getBySerialNumber(searchedSerial),
   });
 
   const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("equipment").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => equipmentRepository.delete(id),
     onSuccess: () => {
       toast.success(t("equipmentPage.deleted"));
       qc.invalidateQueries({ queryKey: ["equipment"] });

@@ -12,7 +12,7 @@ Digitron App es una **app full-stack en un único repositorio**:
 - La base de datos es **Supabase** (Postgres + Auth + Storage). La seguridad principal vive en **RLS de Postgres**, no en el código de la app.
 - Todo despliega como un **Worker de Cloudflare** (edge runtime con `nodejs_compat`). Ojo con dependencias que requieran binarios nativos o el filesystem real.
 
-Regla mental: *si una operación toca datos sensibles, debe pasar por una server function con `requireSupabaseAuth` y las tablas deben tener RLS scoped a `auth.uid()`*. RLS es el respaldo, las server functions son la puerta.
+Regla mental: _si una operación toca datos sensibles, debe pasar por una server function con `requireSupabaseAuth` y las tablas deben tener RLS scoped a `auth.uid()`_. RLS es el respaldo, las server functions son la puerta.
 
 ---
 
@@ -32,17 +32,17 @@ Patrón canónico para lógica de servidor (queries, mutaciones, llamadas a APIs
 
 ```ts
 // src/lib/orders.functions.ts
-import { createServerFn } from '@tanstack/react-start';
-import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
-import { z } from 'zod';
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { z } from "zod";
 
-export const listOrders = createServerFn({ method: 'GET' })
+export const listOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ status: z.string().optional() }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const q = supabase.from('orders').select('*');
-    if (data.status) q.eq('status', data.status);
+    const q = supabase.from("orders").select("*");
+    if (data.status) q.eq("status", data.status);
     const { data: rows, error } = await q;
     if (error) throw error;
     return rows;
@@ -50,6 +50,7 @@ export const listOrders = createServerFn({ method: 'GET' })
 ```
 
 Reglas:
+
 - Archivos `*.functions.ts` van en `src/lib/`, **nunca** en `src/server/` (import-protected).
 - Leer `process.env.*` **dentro de `.handler()`**, no a nivel de módulo.
 - Llamarlas desde componentes con `useServerFn(fn)` + `useQuery`, no desde `loader` de rutas públicas (SSR sin token → 401).
@@ -68,6 +69,7 @@ Reglas:
 - No tocar schemas reservados: `auth`, `storage`, `realtime`, `supabase_functions`, `vault`.
 
 Archivos auto-generados (**NO EDITAR**):
+
 - `src/integrations/supabase/client.ts`
 - `src/integrations/supabase/client.server.ts`
 - `src/integrations/supabase/auth-middleware.ts`

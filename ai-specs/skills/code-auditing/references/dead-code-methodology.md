@@ -9,41 +9,53 @@ Dead code is code that exists in the codebase but is never executed. It increase
 ## Types of Dead Code
 
 ### 1. Unused Imports
+
 Import statements for modules/symbols that are never used:
+
 ```javascript
-import { unused } from './utils';  // Never referenced
+import { unused } from "./utils"; // Never referenced
 ```
 
 ### 2. Unused Exports
+
 Functions, classes, variables exported but never imported elsewhere:
+
 ```javascript
 export function formatDate() { ... }  // Not imported anywhere
 ```
 
 ### 3. Unused Variables
+
 Variables declared but never read:
+
 ```python
 result = compute()  # Never used after assignment
 ```
 
 ### 4. Unused Functions/Methods
+
 Functions defined but never called:
+
 ```typescript
 function legacyHelper() { ... }  // Never invoked
 ```
 
 ### 5. Unused Files
+
 Entire files not imported anywhere in the codebase.
 
 ### 6. Unused Dependencies
+
 Packages in package.json/requirements.txt not used in code.
 
 ### 7. Unreachable Code
+
 Code after return/throw statements or in dead branches:
+
 ```javascript
 function foo() {
   return 42;
-  console.log('never runs');  // Unreachable
+  console.log("never runs"); // Unreachable
 }
 ```
 
@@ -52,12 +64,14 @@ function foo() {
 ### Knip (JavaScript/TypeScript)
 
 **Installation:**
+
 ```bash
 npm install -g knip
 # or use via npx (no install required)
 ```
 
 **Commands:**
+
 ```bash
 # Detection (default output)
 npx knip
@@ -76,6 +90,7 @@ npx knip --include files --exclude dependencies
 ```
 
 **Configuration (`knip.json`):**
+
 ```json
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
@@ -87,6 +102,7 @@ npx knip --include files --exclude dependencies
 ```
 
 **Categories detected:**
+
 - files, dependencies, devDependencies
 - exports, nsExports, classMembers
 - types, nsTypes, enumMembers
@@ -95,11 +111,13 @@ npx knip --include files --exclude dependencies
 ### Deadcode (Python)
 
 **Installation:**
+
 ```bash
 pip install deadcode
 ```
 
 **Commands:**
+
 ```bash
 # Detection
 deadcode .
@@ -121,6 +139,7 @@ deadcode . --exclude tests/
 ```
 
 **Detection capabilities:**
+
 - Unused imports (DC01)
 - Unused variables (DC02)
 - Unused functions (DC03)
@@ -134,6 +153,7 @@ deadcode . --exclude tests/
 ### Common False Positives
 
 #### 1. Dynamic Imports
+
 ```javascript
 // These imports appear unused but are loaded at runtime
 const module = await import(modulePath);
@@ -141,6 +161,7 @@ require(variableName);
 ```
 
 #### 2. Framework Magic
+
 ```typescript
 // React components used in JSX
 export const Button = () => <button />;  // Used as <Button />
@@ -154,28 +175,32 @@ export function useCounter() { ... }  // Used in <script setup>
 ```
 
 #### 3. Re-exports for Public API
+
 ```typescript
 // index.ts barrel file - exports ARE the purpose
-export { Helper } from './helper';  // Re-exported for external use
+export { Helper } from "./helper"; // Re-exported for external use
 ```
 
 #### 4. Entry Points
+
 ```javascript
 // CLI scripts, serverless handlers, etc.
 export const handler = async (event) => { ... };  // AWS Lambda entry
 ```
 
 #### 5. Test Utilities
+
 ```typescript
 // Only used in test files
-export class TestHelper {}  // Referenced in *.test.ts
+export class TestHelper {} // Referenced in *.test.ts
 ```
 
 #### 6. String-Based References
+
 ```javascript
 // Accessed via strings or reflection
-const fn = functions['dynamicName'];
-getattr(obj, 'method_name')()
+const fn = functions["dynamicName"];
+getattr(obj, "method_name")();
 ```
 
 ### Verification Checklist
@@ -201,13 +226,16 @@ For each flagged item, the agent MUST:
 ## Workflow
 
 ### 1. Run Detection Tool
+
 ```bash
 # Use the helper script
 ${CLAUDE_PLUGIN_ROOT}/scripts/dead-code-detect.sh --format json
 ```
 
 ### 2. Parse and Categorize
+
 Group findings by type:
+
 - Unused exports
 - Unused files
 - Unused dependencies
@@ -215,18 +243,23 @@ Group findings by type:
 - Unused class members
 
 ### 3. Verify Each Finding
+
 For each item:
+
 1. Read the code
 2. Check for false positive patterns
 3. Mark as "verified" or "likely false positive"
 
 ### 4. Present Verified Report
+
 Show user:
+
 - Summary counts (verified items only)
 - Detailed list with file:line references
 - Filtered items with reasons
 
 ### 5. Apply Fixes (After Approval)
+
 ```bash
 # Only after user confirms
 npx knip --fix
@@ -237,16 +270,19 @@ deadcode . --fix
 ## Integration with Audits
 
 ### Quick Check Integration
+
 - Run detection as part of automated checks
 - Report findings under "Dead Code" category
 - Don't auto-fix; inform user of findings
 
 ### Deep Audit Integration
+
 - Run as Phase 2.5: Dead Code Detection
 - Include in comprehensive report
 - Provide fix commands for user to run
 
 ### Standalone `/dead-code` Command
+
 - Focused workflow for dead code only
 - Interactive cleanup with user approval
 - Show verification process

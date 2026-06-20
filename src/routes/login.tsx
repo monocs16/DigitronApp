@@ -1,11 +1,21 @@
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { supabase } from "@/integrations/supabase/client";
+import { authService } from "@/lib/auth.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -18,26 +28,37 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
+const loginSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginValues = z.infer<typeof loginSchema>;
+
 function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const search = Route.useSearch();
   const { loading: authLoading, session } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast.error(t("login.failed"), { description: error.message });
-      return;
-    }
-    navigate({ to: search.redirect ?? "/dashboard" });
-  };
+  const form = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
+
+  const signIn = useMutation({
+    mutationFn: (values: LoginValues) => authService.signIn(values.email, values.password),
+    onSuccess: ({ error }) => {
+      if (error) {
+        toast.error(t("login.failed"), { description: error.message });
+        return;
+      }
+      navigate({ to: search.redirect ?? "/dashboard" });
+    },
+    onError: (e: Error) => toast.error(t("login.failed"), { description: e.message }),
+  });
+
+  const onSubmit = form.handleSubmit((values) => signIn.mutate(values));
 
   if (authLoading) {
     return (
@@ -68,34 +89,40 @@ function LoginPage() {
           <CardDescription>{t("login.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">{t("login.email")}</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+          <Form {...form}>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("login.email")}</FormLabel>
+                    <FormControl>
+                      <Input type="email" autoComplete="email" autoFocus {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">{t("login.password")}</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("login.password")}</FormLabel>
+                    <FormControl>
+                      <Input type="password" autoComplete="current-password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? t("login.signingIn") : t("login.signIn")}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">{t("login.adminOnly")}</p>
-          </form>
+              <Button type="submit" className="w-full" disabled={signIn.isPending}>
+                {signIn.isPending ? t("login.signingIn") : t("login.signIn")}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">{t("login.adminOnly")}</p>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>

@@ -34,10 +34,12 @@ follow that flow and cleans up the UX.
 ## Capabilities
 
 ### New Capabilities
+
 - `customer-notifications`: recording customer notifications for the budget decision and for
   delivery (timestamp + history); email delivery is explicitly deferred.
 
 ### Modified Capabilities
+
 - `service-order-workflow`: add order origin, customer-decision auto-routing, guided stage
   progression with per-role ownership, and the notification touch-points.
 - `reporting-dashboard`: add a role-scoped "pending my action" inbox.

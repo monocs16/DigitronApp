@@ -36,8 +36,15 @@ const techCtx = (overrides: Partial<TransitionContext> = {}): TransitionContext 
 describe("STAGE_TRANSITIONS completeness", () => {
   it("every stage has an entry", () => {
     const stages: OrderStage[] = [
-      "intake", "evaluation", "budget", "customer_decision",
-      "on_hold", "repair", "payment", "delivered", "closed",
+      "intake",
+      "evaluation",
+      "budget",
+      "customer_decision",
+      "on_hold",
+      "repair",
+      "payment",
+      "delivered",
+      "closed",
     ];
     for (const s of stages) {
       expect(STAGE_TRANSITIONS).toHaveProperty(s);
@@ -59,7 +66,9 @@ describe("canTransition — valid progressions", () => {
   });
 
   it("customer_decision → repair when budget approved (admin)", () => {
-    expect(canTransition("customer_decision", "repair", adminCtx({ budgetApproved: true }))).toBe(true);
+    expect(canTransition("customer_decision", "repair", adminCtx({ budgetApproved: true }))).toBe(
+      true,
+    );
   });
 
   it("customer_decision → on_hold (admin)", () => {
@@ -107,7 +116,12 @@ describe("canTransition — invalid (skipped) transitions", () => {
 
 describe("canTransition — role restrictions", () => {
   it("cliente role cannot transition any stage", () => {
-    const ctx: TransitionContext = { roles: ["cliente"], isAssignedTechnician: false, budgetApproved: true, balanceSettled: true };
+    const ctx: TransitionContext = {
+      roles: ["cliente"],
+      isAssignedTechnician: false,
+      budgetApproved: true,
+      balanceSettled: true,
+    };
     expect(canTransition("intake", "evaluation", ctx)).toBe(false);
   });
 
@@ -127,7 +141,9 @@ describe("canTransition — role restrictions", () => {
 
 describe("canTransition — data gates", () => {
   it("repair gate blocks when budget not approved", () => {
-    expect(canTransition("customer_decision", "repair", adminCtx({ budgetApproved: false }))).toBe(false);
+    expect(canTransition("customer_decision", "repair", adminCtx({ budgetApproved: false }))).toBe(
+      false,
+    );
   });
 
   it("delivered gate blocks when balance not settled", () => {

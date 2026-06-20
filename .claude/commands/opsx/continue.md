@@ -8,6 +8,7 @@ tags: [workflow, artifacts, experimental]
 Continue working on a change by creating the next artifact.
 
 **Input**: Optionally specify after `/opsx:continue`:
+
 - A Jira ticket ID (e.g., `SCRUM-123`) - will fetch ticket content and find/create associated change
 - A change name (e.g., `add-auth`) - will use that change directly
 - If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
@@ -17,23 +18,23 @@ Continue working on a change by creating the next artifact.
 1. **Determine input and get context**
 
    a. **If input looks like a Jira ticket ID** (matches pattern like `SCRUM-123`, `PROJ-456`, etc.):
-      - Use `getAccessibleAtlassianResources` MCP tool to get the cloudId
-      - Use `getJiraIssue` MCP tool with:
-        - `cloudId`: from step above
-        - `issueIdOrKey`: the provided ticket ID
-      - Extract ticket content (title, description, acceptance criteria, etc.)
-      - **Derive a kebab-case change name from the ticket title**:
-        - Convert ticket title to lowercase
-        - Replace spaces and special characters with hyphens
-        - Remove any leading/trailing hyphens
-        - Example: "Update Position API" → `update-position-api`, "Add User Auth" → `add-user-auth`
-        - If ticket title is unclear or too long, use a shortened meaningful version
-      - Try to find existing change with the derived kebab-case name
-      - If no change exists, ask user if they want to create one or use an existing change
-      - Use ticket content as context for creating the next artifact
+   - Use `getAccessibleAtlassianResources` MCP tool to get the cloudId
+   - Use `getJiraIssue` MCP tool with:
+     - `cloudId`: from step above
+     - `issueIdOrKey`: the provided ticket ID
+   - Extract ticket content (title, description, acceptance criteria, etc.)
+   - **Derive a kebab-case change name from the ticket title**:
+     - Convert ticket title to lowercase
+     - Replace spaces and special characters with hyphens
+     - Remove any leading/trailing hyphens
+     - Example: "Update Position API" → `update-position-api`, "Add User Auth" → `add-user-auth`
+     - If ticket title is unclear or too long, use a shortened meaningful version
+   - Try to find existing change with the derived kebab-case name
+   - If no change exists, ask user if they want to create one or use an existing change
+   - Use ticket content as context for creating the next artifact
 
    b. **If input is a change name or no input provided**:
-      - Proceed with existing logic (prompt for selection if needed)
+   - Proceed with existing logic (prompt for selection if needed)
 
    Run `openspec list --json` to get available changes sorted by most recently modified. Then use the **AskUserQuestion tool** to let the user select which change to work on.
 
@@ -48,9 +49,11 @@ Continue working on a change by creating the next artifact.
    **IMPORTANT**: Do NOT guess or auto-select a change. Always let the user choose.
 
 2. **Check current status**
+
    ```bash
    openspec status --change "<name>" --json
    ```
+
    Parse the JSON to understand current state. The response includes:
    - `schemaName`: The workflow schema being used (e.g., "spec-driven")
    - `artifacts`: Array of artifacts with their status ("done", "ready", "blocked")
@@ -58,7 +61,7 @@ Continue working on a change by creating the next artifact.
 
 3. **Act based on status**:
 
-   ---
+   ***
 
    **If all artifacts are complete (`isComplete: true`)**:
    - Congratulate the user
@@ -66,7 +69,7 @@ Continue working on a change by creating the next artifact.
    - Suggest: "All artifacts created! You can now implement this change or archive it."
    - STOP
 
-   ---
+   ***
 
    **If artifacts are ready to create** (status shows artifacts with `status: "ready"`):
    - Pick the FIRST artifact with `status: "ready"` from the status output
@@ -100,7 +103,7 @@ Continue working on a change by creating the next artifact.
    - Show what was created and what's now unlocked
    - STOP after creating ONE artifact
 
-   ---
+   ***
 
    **If no artifacts are ready (all blocked)**:
    - This shouldn't happen with a valid schema
@@ -114,6 +117,7 @@ Continue working on a change by creating the next artifact.
 **Output**
 
 After each invocation, show:
+
 - Which artifact was created
 - Schema workflow being used
 - Current progress (N/M complete)
@@ -127,15 +131,17 @@ The artifact types and their purpose depend on the schema. Use the `instruction`
 Common artifact patterns:
 
 **spec-driven schema** (proposal → specs → design → tasks):
+
 - **proposal.md**: Ask user about the change if not clear. Fill in Why, What Changes, Capabilities, Impact.
   - The Capabilities section is critical - each capability listed will need a spec file.
-- **specs/*.md**: Create one spec per capability listed in the proposal.
+- **specs/\*.md**: Create one spec per capability listed in the proposal.
 - **design.md**: Document technical decisions, architecture, and implementation approach.
 - **tasks.md**: Break down implementation into checkboxed tasks.
 
 For other schemas, follow the `instruction` field from the CLI output.
 
 **Guardrails**
+
 - Create ONE artifact per invocation
 - Always read dependency artifacts before creating a new one
 - Never skip artifacts or create out of order

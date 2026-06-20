@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { getStageLabel, getRoleLabel, getDecisionLabel, STAGE_ORDER, APP_ROLES, BUDGET_DECISIONS } from "@/lib/digitron";
+import {
+  getStageLabel,
+  getRoleLabel,
+  getDecisionLabel,
+  STAGE_ORDER,
+  APP_ROLES,
+  BUDGET_DECISIONS,
+} from "@/lib/digitron";
 import type { TFunction } from "i18next";
 
 // Pass-through mock: returns the key as-is, so we can assert the key is correct.

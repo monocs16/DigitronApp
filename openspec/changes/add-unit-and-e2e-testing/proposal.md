@@ -20,11 +20,12 @@ The project has zero automated tests. The only "E2E test" on record is a manual 
 
 ### Modified Capabilities
 
-*(none — no existing spec requirements change)*
+_(none — no existing spec requirements change)_
 
 ## Impact
 
 **Code touched**
+
 - New: `vitest.config.ts`, `playwright.config.ts`
 - New: `src/lib/__tests__/` — unit tests for `state-machine.ts`, `access.ts`, `digitron.ts`
 - New: `src/components/__tests__/` — component tests for `OrderStageStepper`, `StageBadge`, form dialogs
@@ -33,14 +34,17 @@ The project has zero automated tests. The only "E2E test" on record is a manual 
 - Modified: `package.json` — add test scripts and dev dependencies
 
 **Dependencies added**
+
 - `vitest`, `@vitest/ui`, `jsdom`, `@testing-library/react`, `@testing-library/user-event` (unit/component)
 - `@playwright/test` (E2E)
 
 **Infrastructure**
+
 - E2E tests require the local Supabase stack running (`supabase start`) and the seed admin present; they run in isolation against a known DB state
 - Unit tests have no external dependencies and run in milliseconds
 
 **Not in scope**
+
 - CI pipeline integration (can follow as a separate change once tests are stable)
 - Coverage enforcement thresholds (can be added once baseline is measured)
 - Visual regression / screenshot diffing

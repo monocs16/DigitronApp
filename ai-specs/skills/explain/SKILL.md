@@ -4,6 +4,7 @@ description: Teach underlying concepts with clear mental models to close skill g
 author: LIDR.co
 version: 1.0.0
 ---
+
 # explain Skill
 
 Use it when this workflow is required in the project.
@@ -75,7 +76,7 @@ Given the topic (from arguments or conversation context), produce a **concept-fo
 
 ### Success criterion
 
-A successful response should make the user feel: *"I understand how this system works and why it behaves that way."* Not: *"I applied a fix."*
+A successful response should make the user feel: _"I understand how this system works and why it behaves that way."_ Not: _"I applied a fix."_
 
 ---
 

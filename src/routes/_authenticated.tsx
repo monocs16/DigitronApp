@@ -32,9 +32,7 @@ function AuthLayout() {
           <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur">
             <SidebarTrigger />
             <span className="text-sm font-medium text-muted-foreground">
-              {profile
-                ? t("layout.hello", { name: profile.full_name.split(" ")[0] })
-                : ""}
+              {profile ? t("layout.hello", { name: profile.full_name.split(" ")[0] }) : ""}
             </span>
           </header>
           <main className="flex-1 p-4 md:p-6">

@@ -126,6 +126,10 @@ export const createWarrantyOrder = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ origin_order_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const roles = await loadRoles(supabase, userId);
+    if (!roles.some((r) => ADMIN_ROLES.includes(r))) {
+      throw new Error("Only administrativo or super can create warranty orders.");
+    }
 
     const { data: origin, error: originErr } = await supabase
       .from("orders")
@@ -197,21 +201,16 @@ export const recordBudgetDecision = createServerFn({ method: "POST" })
       .eq("id", budget.id);
     if (upBudget) throw new Error(upBudget.message);
 
-    if (data.decision === "approved") {
-      const { error } = await supabase
-        .from("orders")
-        .update({ authorized: true })
-        .eq("id", data.order_id);
-      if (error) throw new Error(error.message);
-    }
-
     const target: OrderStage =
       data.decision === "approved" ? "repair" : data.decision === "deferred" ? "on_hold" : "closed";
     const { stage, ctx } = await loadOrderContext(supabase, userId, data.order_id);
     if (!canTransition(stage, target, ctx)) throw new Error("Transition not allowed.");
     const { error: upStage } = await supabase
       .from("orders")
-      .update({ stage: target })
+      .update({
+        stage: target,
+        ...(data.decision === "approved" ? { authorized: true } : {}),
+      })
       .eq("id", data.order_id);
     if (upStage) throw new Error(upStage.message);
 

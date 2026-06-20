@@ -8,8 +8,9 @@ requires a richer model and a workflow-driven UX. This change realigns the schem
 and interface with that target so the product reflects how the repair shop actually operates.
 
 The goal is **reorganization and UX quality**, not a rewrite: reuse the existing TanStack Start
-+ Supabase foundation, shadcn UI library, server-function pattern, and current routes wherever
-possible.
+
+- Supabase foundation, shadcn UI library, server-function pattern, and current routes wherever
+  possible.
 
 ## What Changes
 
@@ -38,6 +39,7 @@ possible.
 ## Capabilities
 
 ### New Capabilities
+
 - `access-control`: 4-role model, dedicated `user_roles` table, the module/permission matrix, and
   RLS policies + helper functions that enforce it server-side.
 - `customer-equipment`: customer and equipment records with the full ER field set and serial-based
@@ -54,6 +56,7 @@ possible.
 - `reporting-dashboard`: role-scoped operational dashboard (Tablero) and reports (Reportes).
 
 ### Modified Capabilities
+
 <!-- No previously-archived OpenSpec specs exist (openspec/specs/ is empty); all capabilities above are new. -->
 
 ## Impact

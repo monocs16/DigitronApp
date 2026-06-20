@@ -4,6 +4,7 @@ description: Create focused commits and pull requests following repository stand
 author: LIDR.co
 version: 1.0.0
 ---
+
 # commit Skill
 
 Use it when this workflow is required in the project.
@@ -48,15 +49,15 @@ If the user **explicitly** requested no git operations (e.g. "no PR", "only comm
 
 ## 2. Resolve scope: full commit vs feature-scoped commit
 
-- **If `$ARGUMENTS` is empty or not provided**  
-  - Treat all relevant changes (excluding files that should not be committed, e.g. `.env`, build artifacts, local config) as the scope for this commit.  
+- **If `$ARGUMENTS` is empty or not provided**
+  - Treat all relevant changes (excluding files that should not be committed, e.g. `.env`, build artifacts, local config) as the scope for this commit.
   - Stage all of those and proceed to step 3.
 
-- **If `$ARGUMENTS` is provided (e.g. ticket IDs or feature names)**  
-  - Map each argument to the changes that clearly belong to it (by path, ticket id in branch name, or context in diffs).  
-  - Stage **only** the files/hunks that belong to those features.  
-  - Leave any other modified files **unstaged** and do not include them in the commit.  
-  - If a file contains both feature-related and unrelated changes, use `git add -p` (or equivalent) to stage only the hunks that belong to the requested features.  
+- **If `$ARGUMENTS` is provided (e.g. ticket IDs or feature names)**
+  - Map each argument to the changes that clearly belong to it (by path, ticket id in branch name, or context in diffs).
+  - Stage **only** the files/hunks that belong to those features.
+  - Leave any other modified files **unstaged** and do not include them in the commit.
+  - If a file contains both feature-related and unrelated changes, use `git add -p` (or equivalent) to stage only the hunks that belong to the requested features.
   - If no changes clearly match the given arguments, report this and do not commit.
 
 ## 3. Commit message

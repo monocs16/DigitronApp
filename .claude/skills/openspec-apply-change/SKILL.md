@@ -25,9 +25,11 @@ Implement tasks from an OpenSpec change.
    Always announce: "Using change: <name>" and how to override (e.g., `/opsx:apply <other>`).
 
 2. **Check status to understand the schema**
+
    ```bash
    openspec status --change "<name>" --json
    ```
+
    Parse the JSON to understand:
    - `schemaName`: The workflow being used (e.g., "spec-driven")
    - Which artifact contains the tasks (typically "tasks" for spec-driven, check status for others)
@@ -72,7 +74,7 @@ Implement tasks from an OpenSpec change.
    - Show which task is being worked on
    - Make the code changes required
    - Keep changes minimal and focused
-   
+
    **For Manual Testing Tasks (MANDATORY - AGENT MUST EXECUTE)**:
    - **Manual Endpoint Testing with curl**: If the task involves testing endpoints:
      - Start backend server if needed
@@ -82,7 +84,6 @@ Implement tasks from an OpenSpec change.
      - Restore database state after CREATE/UPDATE/DELETE operations
      - Document all curl commands and responses
      - **NEVER ask the user to run curl commands** - you must execute them yourself
-   
    - **E2E Testing with Playwright MCP**: If the task involves frontend/E2E testing:
      - Start frontend and backend servers if needed
      - Use Playwright MCP tools (`browser_navigate`, `browser_click`, `browser_type`, etc.)
@@ -91,14 +92,12 @@ Implement tasks from an OpenSpec change.
      - Verify data persistence
      - Restore test environment and database state
      - **NEVER ask the user to run E2E tests** - you must execute them yourself
-   
    - **Mark task complete**: Only mark task as complete (`- [ ]` → `- [x]`) AFTER:
      - All code changes are complete
      - All required manual tests have been executed by you (the agent)
      - All test results have been verified
      - Database state has been restored (if applicable)
      - All test outcomes have been documented
-   
    - Continue to next task
 
    **Pause if:**
@@ -167,6 +166,7 @@ What would you like to do?
 ```
 
 **Guardrails**
+
 - Keep going through tasks until done or blocked
 - Always read context files before starting (from the apply instructions output)
 - **CRITICAL**: Read `.claude/rules/openspec-tasks-mandatory-steps.mdc` before implementing to understand mandatory testing requirements

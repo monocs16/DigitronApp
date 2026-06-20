@@ -45,7 +45,7 @@ export const listUsers = createServerFn({ method: "GET" })
 
     const roleByUser = new Map<string, AppRole>();
     for (const r of roleRows ?? []) {
-      if (!roleByUser.has(r.user_id)) roleByUser.set(r.user_id, r.role as AppRole);
+      roleByUser.set(r.user_id, r.role as AppRole);
     }
 
     // Fetch emails via auth admin

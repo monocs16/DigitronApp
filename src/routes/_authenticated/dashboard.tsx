@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ClipboardList, AlertTriangle, CheckCircle2, Wrench } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { ordersRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,16 +23,7 @@ function DashboardPage() {
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders-summary"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(
-          "id, order_number, stage, technician_id, created_at, updated_at, customers(name), equipment(brand, model)",
-        )
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => ordersRepository.getAllSummary(),
   });
 
   const counts = STAGE_ORDER.reduce<Record<OrderStage, number>>(

@@ -21,11 +21,12 @@ export const STAGE_ACTOR_ROLES: Record<OrderStage, AppRole[]> = {
   // Admin completes intake and hands the order to the technician.
   evaluation: ["administrativo"],
   // Technician completes the evaluation and advances it to budget.
-  budget: ["administrativo", "tecnico"],
+  budget: ["tecnico"],
   customer_decision: ["administrativo"],
   on_hold: ["administrativo"],
   repair: ["administrativo"],
-  payment: ["administrativo", "tecnico"],
+  // Technician marks repair complete and advances to payment.
+  payment: ["tecnico"],
   delivered: ["administrativo"],
   closed: ["administrativo"],
 };

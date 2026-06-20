@@ -12,16 +12,20 @@ export function StageBadge({ stage, t }: StageBadgeProps) {
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold tracking-wide shadow-sm"
       style={{
         color: `var(${varName})`,
-        backgroundColor: `color-mix(in oklch, var(${varName}) 15%, transparent)`,
-        border: `1px solid color-mix(in oklch, var(${varName}) 40%, transparent)`,
+        backgroundColor: `color-mix(in oklch, var(${varName}) 12%, transparent)`,
+        border: `1.5px solid color-mix(in oklch, var(${varName}) 50%, transparent)`,
+        boxShadow: `0 0 0 3px color-mix(in oklch, var(${varName}) 8%, transparent)`,
       }}
     >
       <span
-        className="h-1.5 w-1.5 rounded-full shrink-0"
-        style={{ backgroundColor: `var(${varName})` }}
+        className="h-2 w-2 rounded-full shrink-0"
+        style={{
+          backgroundColor: `var(${varName})`,
+          boxShadow: `0 0 4px 1px color-mix(in oklch, var(${varName}) 60%, transparent)`,
+        }}
       />
       {getStageLabel(stage, t)}
     </span>

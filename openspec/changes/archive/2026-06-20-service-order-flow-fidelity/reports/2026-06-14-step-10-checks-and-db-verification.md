@@ -6,6 +6,7 @@
 - Branch: feature/service-order-flow-fidelity
 
 ## Commands Executed
+
 - `npx tsc --noEmit`
 - `npx eslint` (changed files, with `--fix`)
 - `bun run build:dev` (full Vite build, SSR + client)
@@ -14,6 +15,7 @@
 - `psql` schema/baseline checks on the local DB
 
 ## Results
+
 - **tsc**: 0 errors.
 - **eslint**: 0 errors on changed files (repo-wide pre-existing prettier debt in generated
   `supabase/types.ts` and shadcn UI is out of scope, untouched).
@@ -24,6 +26,7 @@
 - **Seed**: `super admin ready → admin@digitron.test / digitron123`.
 
 ## Database State Verification
+
 - New/used flow columns on `public.orders` present and of expected type/nullability:
   `source` (text), `authorized` (boolean NOT NULL), `received_by` (text), `delivery_at` (timestamptz),
   `closing_notes` (text), `decision_notified_at` (timestamptz), `delivery_notified_at` (timestamptz).
@@ -33,9 +36,11 @@
   checks above (read-only).
 
 ## Outcome
+
 - Step 10 status: PASS (build + static checks + schema verified).
 
 ## Notes on Steps 9, 11, 12
+
 - **9 (unit tests)**: no unit-test runner is configured in this project (deferred by the team);
   the static gate (tsc + eslint) and the build stand in. Recommend adding `state-machine.ts` unit
   tests when a runner is introduced.

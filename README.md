@@ -2,9 +2,9 @@
 
 Sistema web full-stack para la **gestión de órdenes de servicio técnico** de Digitron. Centraliza clientes, equipos, órdenes de reparación, asignación de técnicos, seguimiento de estados, evidencia fotográfica, auditoría de cambios y reportes operativos para un taller de servicio.
 
-- **Idioma de la UI:** español  
-- **Marca en pantalla:** Digitron  
-- **Paquete npm:** `digitron-app`  
+- **Idioma de la UI:** español
+- **Marca en pantalla:** Digitron
+- **Paquete npm:** `digitron-app`
 - **Próximo paso planificado:** empaquetado como app de escritorio con **Electron**
 
 ---
@@ -37,10 +37,10 @@ Sistema web full-stack para la **gestión de órdenes de servicio técnico** de 
 
 ## Para quién es
 
-| Perfil | Uso principal |
-|--------|----------------|
+| Perfil            | Uso principal                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------- |
 | **Administrador** | Supervisión del taller, reportes, gestión de usuarios, cierre y entrega de órdenes |
-| **Técnico** | Órdenes asignadas, avance de diagnóstico/reparación, fotos y notas en campo |
+| **Técnico**       | Órdenes asignadas, avance de diagnóstico/reparación, fotos y notas en campo        |
 
 No hay autoservicio para clientes finales: es una herramienta **interna del taller**.
 
@@ -61,32 +61,32 @@ No hay autoservicio para clientes finales: es una herramienta **interna del tall
 
 ## Características por módulo
 
-| Ruta | Quién | Qué incluye |
-|------|-------|-------------|
-| `/login` | Todos | Email + contraseña (Supabase Auth). Redirección al panel tras login. |
-| `/dashboard` | Admin, técnico | Tarjetas de resumen, órdenes recientes, alertas de órdenes sin actualizar. El técnico ve prioridad en *sus* órdenes activas. |
-| `/orders` | Admin, técnico | Listado con filtros por estado y búsqueda por número/cliente. |
-| `/orders/new` | Admin, técnico | Alta de orden: cliente, equipo, técnico, descripción del problema. Número `ORD-YYYY-XXXX` automático. |
+| Ruta               | Quién          | Qué incluye                                                                                                                               |
+| ------------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`           | Todos          | Email + contraseña (Supabase Auth). Redirección al panel tras login.                                                                      |
+| `/dashboard`       | Admin, técnico | Tarjetas de resumen, órdenes recientes, alertas de órdenes sin actualizar. El técnico ve prioridad en _sus_ órdenes activas.              |
+| `/orders`          | Admin, técnico | Listado con filtros por estado y búsqueda por número/cliente.                                                                             |
+| `/orders/new`      | Admin, técnico | Alta de orden: cliente, equipo, técnico, descripción del problema. Número `ORD-YYYY-XXXX` automático.                                     |
 | `/orders/:orderId` | Admin, técnico | Detalle completo: cambio de estado (según rol), técnico, repuesto en espera, costos estimado/final, notas, fotos, historial de auditoría. |
-| `/clients` | Admin, técnico | CRUD de clientes (nombre, teléfono, email). Borrado solo admin. |
-| `/equipment` | Admin, técnico | CRUD de equipos ligados a un cliente. Borrado solo admin. |
-| `/reports` | Solo admin | Distribución por estado, carga por técnico, ingresos por mes, top clientes; botones de exportación PDF. |
-| `/usuarios` | Solo admin | Crear usuarios (email, contraseña temporal, nombre, rol), cambiar rol, eliminar. Requiere `SUPABASE_SERVICE_ROLE_KEY` en el servidor. |
+| `/clients`         | Admin, técnico | CRUD de clientes (nombre, teléfono, email). Borrado solo admin.                                                                           |
+| `/equipment`       | Admin, técnico | CRUD de equipos ligados a un cliente. Borrado solo admin.                                                                                 |
+| `/reports`         | Solo admin     | Distribución por estado, carga por técnico, ingresos por mes, top clientes; botones de exportación PDF.                                   |
+| `/usuarios`        | Solo admin     | Crear usuarios (email, contraseña temporal, nombre, rol), cambiar rol, eliminar. Requiere `SUPABASE_SERVICE_ROLE_KEY` en el servidor.     |
 
 ---
 
 ## Roles y permisos
 
-| Acción | Admin | Técnico |
-|--------|:-----:|:-------:|
-| Panel, listados, clientes, equipos | Sí | Sí |
-| Crear órdenes | Sí | Sí |
-| Editar órdenes asignadas a otro técnico | Sí | No (solo las suyas) |
-| Estados de taller (`diagnosis` … `ready`) | Sí | Sí, en sus órdenes |
-| `delivered`, `closed`, `warranty` | Sí | No |
-| Reportes y PDF | Sí | No |
-| Usuarios (`/usuarios`) | Sí | No |
-| Eliminar clientes / equipos | Sí | No |
+| Acción                                    | Admin |       Técnico       |
+| ----------------------------------------- | :---: | :-----------------: |
+| Panel, listados, clientes, equipos        |  Sí   |         Sí          |
+| Crear órdenes                             |  Sí   |         Sí          |
+| Editar órdenes asignadas a otro técnico   |  Sí   | No (solo las suyas) |
+| Estados de taller (`diagnosis` … `ready`) |  Sí   | Sí, en sus órdenes  |
+| `delivered`, `closed`, `warranty`         |  Sí   |         No          |
+| Reportes y PDF                            |  Sí   |         No          |
+| Usuarios (`/usuarios`)                    |  Sí   |         No          |
+| Eliminar clientes / equipos               |  Sí   |         No          |
 
 La autorización real está en **Postgres (RLS)** con `auth.uid()` y la función `has_role()`. La UI y las server functions son una capa adicional.
 
@@ -96,16 +96,16 @@ La autorización real está en **Postgres (RLS)** con `auth.uid()` y la función
 
 Valores en base de datos (`order_status`) y etiquetas en español ([`src/lib/digitron.ts`](./src/lib/digitron.ts)):
 
-| Estado (DB) | Etiqueta en UI |
-|-------------|----------------|
-| `received` | Recibido |
-| `diagnosis` | En diagnóstico |
-| `repair` | En reparación |
+| Estado (DB)    | Etiqueta en UI        |
+| -------------- | --------------------- |
+| `received`     | Recibido              |
+| `diagnosis`    | En diagnóstico        |
+| `repair`       | En reparación         |
 | `waiting_part` | En espera de repuesto |
-| `ready` | Listo para entrega |
-| `delivered` | Entregado |
-| `closed` | Cerrado |
-| `warranty` | Garantía |
+| `ready`        | Listo para entrega    |
+| `delivered`    | Entregado             |
+| `closed`       | Cerrado               |
+| `warranty`     | Garantía              |
 
 ```mermaid
 stateDiagram-v2
@@ -131,10 +131,10 @@ Las transiciones permitidas desde la app están en [`src/lib/state-machine.ts`](
 
 ## Flujo de trabajo típico
 
-1. **Recepción** — Admin o técnico crea cliente/equipo si no existen y abre una orden en estado *Recibido*.
-2. **Asignación** — Se asigna técnico; la orden pasa a *En diagnóstico* (técnico en sus órdenes).
-3. **Taller** — El técnico actualiza a *En reparación*, *En espera de repuesto* o *Listo para entrega*, sube fotos y anota costos.
-4. **Cierre operativo** — Admin marca *Entregado* y luego *Cerrado* (o *Garantía* si aplica).
+1. **Recepción** — Admin o técnico crea cliente/equipo si no existen y abre una orden en estado _Recibido_.
+2. **Asignación** — Se asigna técnico; la orden pasa a _En diagnóstico_ (técnico en sus órdenes).
+3. **Taller** — El técnico actualiza a _En reparación_, _En espera de repuesto_ o _Listo para entrega_, sube fotos y anota costos.
+4. **Cierre operativo** — Admin marca _Entregado_ y luego _Cerrado_ (o _Garantía_ si aplica).
 5. **Supervisión** — Admin revisa `/dashboard` y `/reports`; la bitácora en el detalle de la orden registra cada cambio relevante.
 
 ---
@@ -180,14 +180,14 @@ erDiagram
   }
 ```
 
-| Tabla | Descripción |
-|-------|-------------|
-| `profiles` | Perfil por usuario Auth (`id` = `auth.users.id`). Rol `admin` o `technician`. |
-| `clients` | Clientes del taller. |
-| `equipment` | Equipos; cada fila pertenece a un cliente. |
-| `orders` | Orden de servicio; número generado por trigger `generate_order_number`. |
-| `order_photos` | Metadatos de fotos; archivo en bucket Storage `order-photos`. |
-| `audit_log` | Historial; inserts vía trigger `log_order_changes` en `orders`. |
+| Tabla          | Descripción                                                                   |
+| -------------- | ----------------------------------------------------------------------------- |
+| `profiles`     | Perfil por usuario Auth (`id` = `auth.users.id`). Rol `admin` o `technician`. |
+| `clients`      | Clientes del taller.                                                          |
+| `equipment`    | Equipos; cada fila pertenece a un cliente.                                    |
+| `orders`       | Orden de servicio; número generado por trigger `generate_order_number`.       |
+| `order_photos` | Metadatos de fotos; archivo en bucket Storage `order-photos`.                 |
+| `audit_log`    | Historial; inserts vía trigger `log_order_changes` en `orders`.               |
 
 Migraciones versionadas en [`supabase/migrations/`](./supabase/migrations/). Guía de aplicación: [`supabase/README.md`](./supabase/README.md).
 
@@ -241,20 +241,20 @@ Convenciones de código: [`ENGINEERING.md`](./ENGINEERING.md). Guía para agente
 
 ## Stack tecnológico
 
-| Capa | Tecnología |
-|------|------------|
-| Framework | [TanStack Start](https://tanstack.com/start) + Vite 7 |
-| Routing | [TanStack Router](https://tanstack.com/router) (file-based) |
-| Datos en cliente | [TanStack Query](https://tanstack.com/query) |
-| UI | React 19, Tailwind CSS v4, [shadcn/ui](https://ui.shadcn.com) |
-| Backend / API interna | TanStack `createServerFn` |
-| Base de datos | Supabase Postgres + **RLS** |
-| Auth | Supabase Auth (email/password) |
-| Archivos | Supabase Storage (`order-photos`) |
-| Formularios | React Hook Form + Zod |
-| PDF | jsPDF + jspdf-autotable |
-| Deploy (opcional) | Cloudflare Workers |
-| Runtime local | [Bun](https://bun.sh) recomendado |
+| Capa                  | Tecnología                                                    |
+| --------------------- | ------------------------------------------------------------- |
+| Framework             | [TanStack Start](https://tanstack.com/start) + Vite 7         |
+| Routing               | [TanStack Router](https://tanstack.com/router) (file-based)   |
+| Datos en cliente      | [TanStack Query](https://tanstack.com/query)                  |
+| UI                    | React 19, Tailwind CSS v4, [shadcn/ui](https://ui.shadcn.com) |
+| Backend / API interna | TanStack `createServerFn`                                     |
+| Base de datos         | Supabase Postgres + **RLS**                                   |
+| Auth                  | Supabase Auth (email/password)                                |
+| Archivos              | Supabase Storage (`order-photos`)                             |
+| Formularios           | React Hook Form + Zod                                         |
+| PDF                   | jsPDF + jspdf-autotable                                       |
+| Deploy (opcional)     | Cloudflare Workers                                            |
+| Runtime local         | [Bun](https://bun.sh) recomendado                             |
 
 ---
 
@@ -348,11 +348,11 @@ WHERE id = 'UUID_DEL_USUARIO';
 
 ### Ejemplo solo para desarrollo local
 
-| Campo | Valor sugerido |
-|-------|----------------|
-| Email | `admin@test.com` |
+| Campo    | Valor sugerido                               |
+| -------- | -------------------------------------------- |
+| Email    | `admin@test.com`                             |
 | Password | `admin123` (o más fuerte en entornos reales) |
-| Rol | `admin` (automático si es el primer perfil) |
+| Rol      | `admin` (automático si es el primer perfil)  |
 
 Para un técnico de prueba, créalo en `/usuarios` con rol **Técnico** o usa el mismo flujo en el dashboard de Auth y deja `role = 'technician'` en `profiles`.
 
@@ -380,9 +380,9 @@ En el dashboard deberías tener:
 
 ### Orden de migraciones
 
-1. `20260516231057_…sql` — esquema, enums, RLS, triggers de número de orden y auditoría  
-2. `20260516231116_…sql` — endurecimiento `search_path` y grants en funciones  
-3. `20260517134255_…sql` — trigger en `auth.users`, políticas de Storage  
+1. `20260516231057_…sql` — esquema, enums, RLS, triggers de número de orden y auditoría
+2. `20260516231116_…sql` — endurecimiento `search_path` y grants en funciones
+3. `20260517134255_…sql` — trigger en `auth.users`, políticas de Storage
 
 Detalle: [`supabase/README.md`](./supabase/README.md).
 
@@ -390,13 +390,13 @@ Detalle: [`supabase/README.md`](./supabase/README.md).
 
 ## Variables de entorno
 
-| Variable | Dónde | Descripción |
-|----------|-------|-------------|
-| `VITE_SUPABASE_URL` | Cliente (build Vite) | URL del proyecto |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Cliente | Clave **anon** (segura en el navegador con RLS) |
-| `SUPABASE_URL` | Servidor | Misma URL |
-| `SUPABASE_PUBLISHABLE_KEY` | Servidor | Misma anon key (middleware SSR / server functions con sesión) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Servidor **solo** | Admin Auth y bypass RLS — **nunca** `VITE_*` |
+| Variable                        | Dónde                | Descripción                                                   |
+| ------------------------------- | -------------------- | ------------------------------------------------------------- |
+| `VITE_SUPABASE_URL`             | Cliente (build Vite) | URL del proyecto                                              |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Cliente              | Clave **anon** (segura en el navegador con RLS)               |
+| `SUPABASE_URL`                  | Servidor             | Misma URL                                                     |
+| `SUPABASE_PUBLISHABLE_KEY`      | Servidor             | Misma anon key (middleware SSR / server functions con sesión) |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Servidor **solo**    | Admin Auth y bypass RLS — **nunca** `VITE_*`                  |
 
 Ejemplo `.env.local`:
 
@@ -448,15 +448,15 @@ digitron-app/
 
 ## Scripts
 
-| Comando | Uso |
-|---------|-----|
-| `bun run dev` | Desarrollo en **http://localhost:5173** (`CF_WORKERS=0`, sin runtime Workers) |
-| `bun run dev:cf` | Dev con runtime Cloudflare (más lento; probar paridad con producción) |
-| `bun run build` | Build producción (`dist/`, con Cloudflare) |
-| `bun run build:dev` | Build modo development |
-| `bun run preview` | Servir el build localmente |
-| `bun run lint` | ESLint |
-| `bun run format` | Prettier en el repo |
+| Comando             | Uso                                                                           |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `bun run dev`       | Desarrollo en **http://localhost:5173** (`CF_WORKERS=0`, sin runtime Workers) |
+| `bun run dev:cf`    | Dev con runtime Cloudflare (más lento; probar paridad con producción)         |
+| `bun run build`     | Build producción (`dist/`, con Cloudflare)                                    |
+| `bun run build:dev` | Build modo development                                                        |
+| `bun run preview`   | Servir el build localmente                                                    |
+| `bun run lint`      | ESLint                                                                        |
+| `bun run format`    | Prettier en el repo                                                           |
 
 ---
 
@@ -485,15 +485,15 @@ ELECTRON=true bun run build
 
 ### Problemas frecuentes
 
-| Síntoma | Qué hacer |
-|---------|-----------|
-| No aparece `Local: http://localhost:5173/` | Usa `bun run dev` (no `vite dev` a mano). No uses `dev:cf` salvo que pruebes Workers. |
-| `lightningcss.darwin-x64.node` not found | Node bajo Rosetta (x64) con deps ARM. Usa `bun run dev` o instala Node 22 **arm64** (`nvm install 22` en terminal sin Rosetta). |
-| Missing Supabase environment variables | Crea `.env.local` desde `.env.example`. |
-| 401 en server functions | Usuario no logueado o llamada desde loader público sin Bearer. |
-| `/usuarios` falla al crear usuario | Falta `SUPABASE_SERVICE_ROLE_KEY` en `.env.local`. |
-| `brew install supabase` falla en Mac ARM | `arch -arm64 brew install supabase/tap/supabase` |
-| Build falla por versión de Node | `nvm use` → Node 22, o `bun --bun run build` |
+| Síntoma                                    | Qué hacer                                                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| No aparece `Local: http://localhost:5173/` | Usa `bun run dev` (no `vite dev` a mano). No uses `dev:cf` salvo que pruebes Workers.                                           |
+| `lightningcss.darwin-x64.node` not found   | Node bajo Rosetta (x64) con deps ARM. Usa `bun run dev` o instala Node 22 **arm64** (`nvm install 22` en terminal sin Rosetta). |
+| Missing Supabase environment variables     | Crea `.env.local` desde `.env.example`.                                                                                         |
+| 401 en server functions                    | Usuario no logueado o llamada desde loader público sin Bearer.                                                                  |
+| `/usuarios` falla al crear usuario         | Falta `SUPABASE_SERVICE_ROLE_KEY` en `.env.local`.                                                                              |
+| `brew install supabase` falla en Mac ARM   | `arch -arm64 brew install supabase/tap/supabase`                                                                                |
+| Build falla por versión de Node            | `nvm use` → Node 22, o `bun --bun run build`                                                                                    |
 
 ---
 
@@ -528,11 +528,11 @@ Entry del worker: [`src/server.ts`](./src/server.ts) (envuelve el handler de Tan
 
 ## Documentación adicional
 
-| Documento | Contenido |
-|-----------|-----------|
-| [`AGENTS.md`](./AGENTS.md) | Reglas para agentes de IA (Supabase, secretos, server functions) |
-| [`ENGINEERING.md`](./ENGINEERING.md) | Arquitectura detallada y errores comunes |
-| [`supabase/README.md`](./supabase/README.md) | Migraciones y CLI |
+| Documento                                    | Contenido                                                        |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| [`AGENTS.md`](./AGENTS.md)                   | Reglas para agentes de IA (Supabase, secretos, server functions) |
+| [`ENGINEERING.md`](./ENGINEERING.md)         | Arquitectura detallada y errores comunes                         |
+| [`supabase/README.md`](./supabase/README.md) | Migraciones y CLI                                                |
 
 ---
 

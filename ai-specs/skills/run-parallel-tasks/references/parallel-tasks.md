@@ -7,11 +7,11 @@ Process stops after verify — no archive, no commit, no worktree cleanup.
 
 ## US source formats
 
-| Format | When to use |
-|--------|-------------|
-| `us: inline` + `description:` block | You have the US text ready |
-| `us: docs/us/my-feature.md` | US is in a markdown file in the repo |
-| `us: PROJ-123` | US is a Jira ticket (enrich-us will fetch and enrich it) |
+| Format                              | When to use                                              |
+| ----------------------------------- | -------------------------------------------------------- |
+| `us: inline` + `description:` block | You have the US text ready                               |
+| `us: docs/us/my-feature.md`         | US is in a markdown file in the repo                     |
+| `us: PROJ-123`                      | US is a Jira ticket (enrich-us will fetch and enrich it) |
 
 ---
 

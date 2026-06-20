@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { partsRepository } from "@/lib/repositories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,7 +50,13 @@ interface PartFormDialogProps {
   onSuccess?: (id: string) => void;
 }
 
-const EMPTY: PartFormValues = { part_code: "", description: "", unit_cost: 0, stock: 0, supplier: "" };
+const EMPTY: PartFormValues = {
+  part_code: "",
+  description: "",
+  unit_cost: 0,
+  stock: 0,
+  supplier: "",
+};
 
 export function PartFormDialog({ open, onOpenChange, editing, onSuccess }: PartFormDialogProps) {
   const { t } = useTranslation();
@@ -87,14 +93,10 @@ export function PartFormDialog({ open, onOpenChange, editing, onSuccess }: PartF
         supplier: values.supplier.trim() || null,
       };
       if (editing) {
-        const { error } = await supabase.from("parts").update(payload).eq("id", editing.id);
-        if (error) throw error;
+        await partsRepository.update(editing.id, payload);
         return editing.id;
-      } else {
-        const { data, error } = await supabase.from("parts").insert(payload).select("id").single();
-        if (error) throw error;
-        return data.id as string;
       }
+      return partsRepository.create(payload);
     },
     onSuccess: (id) => {
       toast.success(editing ? t("inventory.updated") : t("inventory.created"));

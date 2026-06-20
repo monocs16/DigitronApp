@@ -1,6 +1,8 @@
+/* eslint-disable react-refresh/only-export-components -- AuthProvider and useAuth are intentionally co-located */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { authService } from "@/lib/auth.service";
+import { profilesRepository, userRolesRepository } from "@/lib/repositories";
 import type { AppRole } from "@/lib/digitron";
 
 export type Profile = {
@@ -30,18 +32,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (uid: string) => {
-    const [{ data: profileRow }, { data: roleRows }] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, email, active").eq("id", uid).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", uid),
-    ]);
-    setProfile((profileRow as Profile | null) ?? null);
-    setRoles((roleRows ?? []).map((r) => r.role as AppRole));
+    try {
+      const [profileRow, roleRows] = await Promise.all([
+        profilesRepository.getById(uid),
+        userRolesRepository.getByUserId(uid),
+      ]);
+      setProfile((profileRow as Profile | null) ?? null);
+      setRoles(roleRows.map((r) => r.role as AppRole));
+    } catch (err) {
+      console.error("[auth] failed to load profile:", err);
+    }
   }, []);
 
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getSession().then(async ({ data }) => {
+    authService.getSession().then(async ({ data }) => {
       if (!active) return;
       setSession(data.session);
       if (data.session?.user) {
@@ -53,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (active) setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
+    const { data: sub } = authService.onAuthStateChange((event, newSession) => {
       if (event === "INITIAL_SESSION") return;
       setSession(newSession);
       if (newSession?.user) {
@@ -71,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadProfile]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await authService.signOut();
   };
 
   const refreshProfile = async () => {

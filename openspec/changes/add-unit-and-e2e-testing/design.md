@@ -20,6 +20,7 @@ deployed on Cloudflare Workers.
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Unit test all pure lib functions in `src/lib/` with Vitest (fast, Bun-native)
 - E2E test the critical service-order happy path (all 8 stages) with Playwright against the local
   Supabase stack
@@ -27,6 +28,7 @@ deployed on Cloudflare Workers.
 - Minimal configuration friction — tests run with a single command
 
 **Non-Goals:**
+
 - Component tests for UI elements (deferred — requires jsdom + render setup complexity)
 - Visual regression / screenshot diffing
 - CI pipeline integration (covered by a future change)

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { equipmentRepository } from "@/lib/repositories";
 import { useClientsMin } from "@/hooks/use-clients-min";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,18 +129,10 @@ export function EquipmentFormDialog({
         purchase_date: values.purchase_date || null,
       };
       if (editing) {
-        const { error } = await supabase.from("equipment").update(payload).eq("id", editing.id);
-        if (error) throw error;
+        await equipmentRepository.update(editing.id, payload);
         return editing.id;
-      } else {
-        const { data, error } = await supabase
-          .from("equipment")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (error) throw error;
-        return data.id as string;
       }
+      return equipmentRepository.create(payload);
     },
     onSuccess: (id, values) => {
       toast.success(editing ? t("equipmentPage.updated") : t("equipmentPage.created"));
@@ -199,7 +191,11 @@ export function EquipmentFormDialog({
                   <FormItem>
                     <FormLabel>{t("equipmentPage.type")} *</FormLabel>
                     <FormControl>
-                      <Input autoFocus={!clientIsLocked ? false : true} placeholder={t("equipmentPage.typePlaceholder")} {...field} />
+                      <Input
+                        autoFocus={!clientIsLocked ? false : true}
+                        placeholder={t("equipmentPage.typePlaceholder")}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

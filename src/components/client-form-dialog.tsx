@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { customersRepository } from "@/lib/repositories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,9 +53,21 @@ interface ClientFormDialogProps {
   onSuccess?: (id: string) => void;
 }
 
-const EMPTY: ClientFormValues = { name: "", tax_id: "", phone1: "", phone2: "", email: "", address: "" };
+const EMPTY: ClientFormValues = {
+  name: "",
+  tax_id: "",
+  phone1: "",
+  phone2: "",
+  email: "",
+  address: "",
+};
 
-export function ClientFormDialog({ open, onOpenChange, editing, onSuccess }: ClientFormDialogProps) {
+export function ClientFormDialog({
+  open,
+  onOpenChange,
+  editing,
+  onSuccess,
+}: ClientFormDialogProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
@@ -92,18 +104,10 @@ export function ClientFormDialog({ open, onOpenChange, editing, onSuccess }: Cli
         address: values.address.trim() || null,
       };
       if (editing) {
-        const { error } = await supabase.from("customers").update(payload).eq("id", editing.id);
-        if (error) throw error;
+        await customersRepository.update(editing.id, payload);
         return editing.id;
-      } else {
-        const { data, error } = await supabase
-          .from("customers")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (error) throw error;
-        return data.id as string;
       }
+      return customersRepository.create(payload);
     },
     onSuccess: (id) => {
       toast.success(editing ? t("clients.updated") : t("clients.created"));

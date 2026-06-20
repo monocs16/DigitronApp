@@ -19,11 +19,11 @@ Documentación extendida: [`ENGINEERING.md`](./ENGINEERING.md) · setup humano: 
 
 ## Supabase — clientes y cuándo usarlos
 
-| Cliente | Import | Uso |
-|---------|--------|-----|
-| **Browser / componentes** | `@/integrations/supabase/client` | Auth en cliente, queries directas en rutas, Storage, realtime |
-| **Server function con usuario (RLS)** | `requireSupabaseAuth` en middleware → `context.supabase` | Mutaciones y lecturas que deben respetar RLS del usuario |
-| **Admin (bypass RLS)** | `process.env.SUPABASE_SERVICE_ROLE_KEY` solo dentro de `.handler()` en `*.functions.ts`, o `client.server` en servidor | Crear usuarios, tareas de confianza — **nunca en el bundle del cliente** |
+| Cliente                               | Import                                                                                                                 | Uso                                                                      |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Browser / componentes**             | `@/integrations/supabase/client`                                                                                       | Auth en cliente, queries directas en rutas, Storage, realtime            |
+| **Server function con usuario (RLS)** | `requireSupabaseAuth` en middleware → `context.supabase`                                                               | Mutaciones y lecturas que deben respetar RLS del usuario                 |
+| **Admin (bypass RLS)**                | `process.env.SUPABASE_SERVICE_ROLE_KEY` solo dentro de `.handler()` en `*.functions.ts`, o `client.server` en servidor | Crear usuarios, tareas de confianza — **nunca en el bundle del cliente** |
 
 **Reglas críticas:**
 
@@ -38,7 +38,7 @@ Documentación extendida: [`ENGINEERING.md`](./ENGINEERING.md) · setup humano: 
 - Plantilla: [`.env.example`](./.env.example) → copiar a **`.env.local`** (gitignored).
 - Cliente: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (clave **anon** / publishable).
 - Servidor: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-- Misma URL y anon key en pares VITE_ / sin prefijo.
+- Misma URL y anon key en pares VITE\_ / sin prefijo.
 - **No commitear** `.env`, `.env.local` ni secretos en código, migraciones o `config.toml` (usa `supabase link` o placeholder en `project_id`).
 
 ---

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { PlusCircle, Search } from "lucide-react";
 import { useTechnicians } from "@/hooks/use-technicians";
 import { PageHeader } from "@/components/page-header";
-import { supabase } from "@/integrations/supabase/client";
+import { ordersRepository } from "@/lib/repositories";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,20 +63,7 @@ function OrdersPage() {
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(
-          `
-          id, order_number, stage, technician_id, client_id, equipment_id, created_at,
-          customers(name), equipment(brand, model),
-          technician:profiles!orders_technician_id_fkey(full_name)
-        `,
-        )
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as unknown as OrderRow[];
-    },
+    queryFn: () => ordersRepository.getAll() as Promise<OrderRow[]>,
   });
 
   const { data: techs = [] } = useTechnicians();

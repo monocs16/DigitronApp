@@ -3,6 +3,7 @@ name: code-auditing
 description: Task-focused project skill.
 version: 1.0.0
 ---
+
 # Code Auditing Skill
 
 Comprehensive methodology for systematic code quality audits.
@@ -19,6 +20,7 @@ Comprehensive methodology for systematic code quality audits.
 ## Audit Phases
 
 ### Phase 0: Pre-Analysis Setup
+
 1. Check for project configuration files (package.json, tsconfig.json, etc.)
 2. Identify tech stack and main libraries
 3. Check for linting/formatting configs
@@ -26,12 +28,15 @@ Comprehensive methodology for systematic code quality audits.
 5. Load documentation for identified core libraries
 
 ### Phase 1: Discovery
+
 1. Find all code files by type
 2. Create tracking list for each file
 3. Group files by module/feature for contextual analysis
 
 ### Phase 2: File-by-File Analysis
+
 For each file, analyze for:
+
 - Dead code (unused functions, variables, imports)
 - Code smells and anti-patterns
 - Custom implementations that could use established libraries
@@ -43,7 +48,9 @@ For each file, analyze for:
 - Duplicate code
 
 ### Phase 3: Best Practices Verification
+
 For every library and framework:
+
 1. Retrieve official documentation
 2. Compare implementation against official patterns
 3. Identify deviations from recommendations
@@ -51,21 +58,27 @@ For every library and framework:
 5. Flag discouraged anti-patterns
 
 ### Phase 4: Pattern Detection
+
 Look for recurring issues:
+
 - Common anti-patterns across files
 - Duplicated logic that could be abstracted
 - Inconsistent coding styles
 - Missing error handling patterns
 
 ### Phase 5: Library Recommendations
+
 For custom implementations:
+
 1. Check if current libraries provide the functionality
 2. Search for mature ecosystem packages
 3. Verify library health (commits, issues, activity)
 4. Check compatibility with project setup
 
 ### Phase 6: Comprehensive Report
+
 Generate detailed report with:
+
 - Executive summary
 - Critical issues requiring immediate attention
 - File-by-file findings
@@ -84,6 +97,7 @@ Generate detailed report with:
 ## Analysis Categories
 
 ### Security
+
 - Hardcoded secrets
 - SQL injection risks
 - XSS vulnerabilities
@@ -91,6 +105,7 @@ Generate detailed report with:
 - Exposed sensitive data
 
 ### Performance
+
 - Inefficient algorithms
 - Blocking operations
 - Memory leaks
@@ -98,17 +113,20 @@ Generate detailed report with:
 - N+1 query patterns
 
 ### TypeScript/Type Safety
+
 - Missing type annotations
 - Use of `any` type
 - Custom types duplicating official types
 - Missing @types packages
 
 ### Async/Promise Issues
+
 - Missing await keywords
 - Unhandled promise rejections
 - Callback hell
 
 ### Dead Code
+
 - Unused imports and exports
 - Unused functions, classes, and methods
 - Unused variables and types
@@ -117,10 +135,12 @@ Generate detailed report with:
 - Unused dependencies
 
 **Tools:**
+
 - JavaScript/TypeScript: `npx knip --reporter json`
 - Python: `deadcode . --dry`
 
 **Important:** Always verify tool findings before reporting. Check for:
+
 - Dynamic imports (`import(variable)`)
 - Framework patterns (React components, decorators)
 - Re-exports for public API
@@ -136,12 +156,14 @@ See the reference documents for complete methodologies:
 ## Quick Reference
 
 ### Before Starting
+
 - [ ] Read project configuration files
 - [ ] Identify tech stack and libraries
 - [ ] Run existing linters as baseline
 - [ ] Create file tracking list
 
 ### During Audit
+
 - [ ] Mark files as in-progress
 - [ ] Analyze each category systematically
 - [ ] Note specific line numbers
@@ -149,6 +171,7 @@ See the reference documents for complete methodologies:
 - [ ] Mark files as completed
 
 ### After Audit
+
 - [ ] Categorize all findings by priority
 - [ ] Generate comprehensive report
 - [ ] Save report to project root

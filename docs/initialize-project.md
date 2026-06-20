@@ -68,15 +68,15 @@ docs/openspec-tasks-mandatory-steps.md
 
 These files define **what your application is**. Agents read them when implementing features.
 
-| File | Purpose | When to create |
-|------|---------|----------------|
-| `docs/api-spec.yml` | REST/API contracts | Before first backend feature |
-| `docs/data-model.md` | Domain entities and relationships | Before first data model work |
-| `docs/development_guide.md` | How to run, test, deploy the app | When the app is runnable |
-| `docs/backend-standards.md` | Backend conventions | Customize from harness copy |
-| `docs/frontend-standards.md` | Frontend conventions | Customize from harness copy |
-| `openspec/specs/<capability>/spec.md` | Capability requirements | Created by OpenSpec as features land |
-| `openspec/changes/<change>/` | Active feature work | Created per change via `opsx:new` |
+| File                                  | Purpose                           | When to create                       |
+| ------------------------------------- | --------------------------------- | ------------------------------------ |
+| `docs/api-spec.yml`                   | REST/API contracts                | Before first backend feature         |
+| `docs/data-model.md`                  | Domain entities and relationships | Before first data model work         |
+| `docs/development_guide.md`           | How to run, test, deploy the app  | When the app is runnable             |
+| `docs/backend-standards.md`           | Backend conventions               | Customize from harness copy          |
+| `docs/frontend-standards.md`          | Frontend conventions              | Customize from harness copy          |
+| `openspec/specs/<capability>/spec.md` | Capability requirements           | Created by OpenSpec as features land |
+| `openspec/changes/<change>/`          | Active feature work               | Created per change via `opsx:new`    |
 
 ---
 
@@ -145,14 +145,14 @@ In Cursor or Claude Code:
 
 ## 5. Day-to-day usage
 
-| Step | Command / skill | What happens |
-|------|-----------------|--------------|
-| Enrich a user story | `enrich-us` | Jira ticket → implementation-ready spec |
-| Start a change | `/opsx:new` | Creates `openspec/changes/<name>/` |
-| Generate artifacts | `/opsx:ff` | proposal → specs → design → tasks |
-| Implement | `/opsx:apply` | Agent works through `tasks.md` |
-| Verify | `/opsx:verify` | Checks implementation vs specs |
-| Archive | `/opsx:archive` | Moves change to archive, syncs `openspec/specs/` |
+| Step                | Command / skill | What happens                                     |
+| ------------------- | --------------- | ------------------------------------------------ |
+| Enrich a user story | `enrich-us`     | Jira ticket → implementation-ready spec          |
+| Start a change      | `/opsx:new`     | Creates `openspec/changes/<name>/`               |
+| Generate artifacts  | `/opsx:ff`      | proposal → specs → design → tasks                |
+| Implement           | `/opsx:apply`   | Agent works through `tasks.md`                   |
+| Verify              | `/opsx:verify`  | Checks implementation vs specs                   |
+| Archive             | `/opsx:archive` | Moves change to archive, syncs `openspec/specs/` |
 
 Project-specific docs (`api-spec.yml`, `data-model.md`) are updated by agents during implementation when endpoints or models change — see `docs/documentation-standards.md`.
 

@@ -32,6 +32,7 @@ Collect three inventories:
 3. Mirror entries in `.cursor/skills`
 
 From mirror entries, classify:
+
 - `linked`: valid symlink pointing to existing canonical skill
 - `broken`: symlink target missing
 - `orphan`: symlink points to canonical namespace but skill no longer exists
@@ -59,6 +60,7 @@ Apply changes in this order:
    - Remove symlink only if it points to canonical namespace and skill is gone
 
 Never remove:
+
 - non-symlink directories
 - files not under canonical symlink policy
 
@@ -88,6 +90,7 @@ Return a concise sync report:
 ### Scenario A - New skill added in ai-specs
 
 Expected behavior:
+
 - Add missing symlink in `.claude/skills`
 - Add missing symlink in `.cursor/skills`
 - Verify both links resolve to canonical folder
@@ -95,6 +98,7 @@ Expected behavior:
 ### Scenario B - Skill removed from ai-specs
 
 Expected behavior:
+
 - Remove orphan canonical symlink from `.claude/skills`
 - Remove orphan canonical symlink from `.cursor/skills`
 - Keep non-canonical directories untouched and report them
@@ -123,12 +127,14 @@ rm .cursor/skills/<skill-name>
 ## Red Flags
 
 Never:
+
 - treat `ai-specs` as non-canonical
 - auto-delete real directories in mirror targets
 - leave broken canonical symlinks after sync
 - silently skip conflicts without reporting
 
 Always:
+
 - analyze before changing
 - apply minimal safe changes
 - preserve non-canonical entries

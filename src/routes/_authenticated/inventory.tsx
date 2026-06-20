@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus, Pencil } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { partsRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
 import { Button } from "@/components/ui/button";
@@ -47,24 +47,14 @@ function InventoryPage() {
 
   const { data: parts = [], isLoading } = useQuery({
     queryKey: ["parts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("parts")
-        .select("id, part_code, description, unit_cost, stock, supplier")
-        .order("part_code", { ascending: true });
-      if (error) throw error;
-      return data as PartRow[];
-    },
+    queryFn: () => partsRepository.getAll() as Promise<PartRow[]>,
   });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PartEditing | null>(null);
 
   const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("parts").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => partsRepository.delete(id),
     onSuccess: () => {
       toast.success(t("inventory.deleted"));
       qc.invalidateQueries({ queryKey: ["parts"] });

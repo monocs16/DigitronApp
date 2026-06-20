@@ -12,7 +12,18 @@ import { toast } from "sonner";
 import { ArrowLeft, Upload, Trash2, ImageIcon, CheckCircle2, Lock } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  ordersRepository,
+  evaluationsRepository,
+  budgetsRepository,
+  repairsRepository,
+  paymentsRepository,
+  orderPartsRepository,
+  photosRepository,
+  profilesRepository,
+  auditRepository,
+  partsRepository,
+} from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import i18n from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,7 +122,11 @@ const ORDER_STAGE_INDEX: Record<OrderStage, number> = {
 
 type SectionStatus = "future" | "active" | "past";
 
-function sectionStatus(activeFrom: number, activeTo: number, orderStage: OrderStage): SectionStatus {
+function sectionStatus(
+  activeFrom: number,
+  activeTo: number,
+  orderStage: OrderStage,
+): SectionStatus {
   const idx = ORDER_STAGE_INDEX[orderStage];
   if (idx < activeFrom) return "future";
   if (idx <= activeTo) return "active";
@@ -147,24 +162,34 @@ function OrderDetailSkeleton() {
 
 // ─── Section header pill ─────────────────────────────────────────────────────
 
-function SectionPill({ status, t }: { status: SectionStatus; t: ReturnType<typeof useTranslation>["t"] }) {
+function SectionPill({
+  status,
+  t,
+}: {
+  status: SectionStatus;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
   if (status === "active") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary shadow-sm ring-2 ring-primary/10">
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-50" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+        </span>
         {t("common.active")}
       </span>
     );
   }
   if (status === "past") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/60 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm dark:border-emerald-700/40 dark:bg-emerald-950 dark:text-emerald-400">
         <CheckCircle2 className="h-3 w-3" />
         {t("common.complete")}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
       <Lock className="h-3 w-3" />
       {t("common.pending")}
     </span>
@@ -179,7 +204,7 @@ const PAYMENT_METHODS = ["cash", "card", "transfer"] as const;
 function OrderDetailPage() {
   const { t } = useTranslation();
   const { orderId } = useParams({ from: "/_authenticated/orders/$orderId" });
-  const { profile, roles } = useAuth();
+  const { profile, roles, loading: authLoading } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const transition = useServerFn(transitionOrder);
@@ -197,139 +222,54 @@ function OrderDetailPage() {
 
   const { data: order, isLoading } = useQuery({
     queryKey: ["order", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(
-          `*, customers(id, name, phone1, email), equipment(id, type, brand, model, serial_number)`,
-        )
-        .eq("id", orderId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => ordersRepository.getById(orderId),
   });
 
   const { data: evaluation } = useQuery({
     queryKey: ["evaluation", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("technical_evaluations")
-        .select("*")
-        .eq("order_id", orderId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => evaluationsRepository.getByOrderId(orderId),
   });
 
   const { data: budget } = useQuery({
     queryKey: ["budget", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("budgets")
-        .select("*")
-        .eq("order_id", orderId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => budgetsRepository.getByOrderId(orderId),
   });
 
   const { data: repair } = useQuery({
     queryKey: ["repair", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("repairs")
-        .select("*")
-        .eq("order_id", orderId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => repairsRepository.getByOrderId(orderId),
   });
 
   const { data: payments = [] } = useQuery({
     queryKey: ["payments", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payments")
-        .select("id, amount, method, reference, paid_at, registered_by")
-        .eq("order_id", orderId)
-        .order("paid_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => paymentsRepository.getByOrderId(orderId),
   });
 
   const { data: techs = [] } = useTechnicians({ includeRoles: true });
 
   const { data: people = [] } = useQuery({
     queryKey: ["profiles-min"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, full_name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => profilesRepository.getAllMin(),
   });
 
   const { data: audit = [] } = useQuery({
     queryKey: ["audit", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("audit_log")
-        .select("id, operation, change_ts, app_user, changed_fields, full_row_old")
-        .eq("table_name", "orders")
-        .filter("record_pk->>id", "eq", orderId)
-        .order("change_ts", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => auditRepository.getByOrderId(orderId),
   });
 
   const { data: photos = [] } = useQuery({
     queryKey: ["photos", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_photos")
-        .select("id, storage_path, uploaded_at")
-        .eq("order_id", orderId);
-      if (error) throw error;
-      const withUrls = await Promise.all(
-        (data ?? []).map(async (p) => {
-          const { data: signed } = await supabase.storage
-            .from("order-photos")
-            .createSignedUrl(p.storage_path, 3600);
-          return { ...p, url: signed?.signedUrl ?? "" };
-        }),
-      );
-      return withUrls;
-    },
+    queryFn: () => photosRepository.getByOrderId(orderId),
   });
 
   const { data: catalog = [] } = useQuery({
     queryKey: ["parts-catalog"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("parts")
-        .select("id, part_code, description, unit_cost, stock")
-        .order("part_code", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => partsRepository.getAll(),
   });
 
   const { data: orderParts = [] } = useQuery({
     queryKey: ["order-parts", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_parts")
-        .select("id, part_id, stage, quantity, unit_cost_at_registration, in_stock_at_registration")
-        .eq("order_id", orderId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => orderPartsRepository.getByOrderId(orderId),
   });
 
   // ── React Hook Form instances ─────────────────────────────────────────────
@@ -480,13 +420,8 @@ function OrderDetailPage() {
   });
 
   const assignTech = useMutation({
-    mutationFn: async (value: string) => {
-      const { error } = await supabase
-        .from("orders")
-        .update({ technician_id: value === "none" ? null : value })
-        .eq("id", orderId);
-      if (error) throw error;
-    },
+    mutationFn: (value: string) =>
+      ordersRepository.updateTechnician(orderId, value === "none" ? null : value),
     onSuccess: () => {
       toast.success(t("orders.technicianUpdated"));
       invalidate("order");
@@ -495,13 +430,7 @@ function OrderDetailPage() {
   });
 
   const saveNotes = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from("orders")
-        .update({ general_notes: generalNotes || null })
-        .eq("id", orderId);
-      if (error) throw error;
-    },
+    mutationFn: () => ordersRepository.updateNotes(orderId, generalNotes || null),
     onSuccess: () => {
       toast.success(t("orders.changesSaved"));
       invalidate("order");
@@ -510,18 +439,13 @@ function OrderDetailPage() {
   });
 
   const saveEvaluation = useMutation({
-    mutationFn: async (data: EvalValues) => {
-      const payload = {
+    mutationFn: (data: EvalValues) =>
+      evaluationsRepository.upsert(evaluation, {
         order_id: orderId,
         diagnosis: data.diagnosis.trim(),
         technical_notes: data.technical_notes.trim() || null,
         technician_id: profile?.id ?? null,
-      };
-      const { error } = evaluation
-        ? await supabase.from("technical_evaluations").update(payload).eq("id", evaluation.id)
-        : await supabase.from("technical_evaluations").insert(payload);
-      if (error) throw error;
-    },
+      }),
     onSuccess: () => {
       toast.success(t("orders.evaluationSaved"));
       invalidate("evaluation");
@@ -530,8 +454,8 @@ function OrderDetailPage() {
   });
 
   const saveBudget = useMutation({
-    mutationFn: async (data: BudgetValues) => {
-      const payload = {
+    mutationFn: (data: BudgetValues) =>
+      budgetsRepository.upsert(budget, {
         order_id: orderId,
         labor_cost: data.labor_cost,
         parts_cost: data.parts_cost,
@@ -540,12 +464,7 @@ function OrderDetailPage() {
         advances: data.advances,
         deferred_reason: deferredReason || null,
         customer_comments: data.customer_comments || null,
-      };
-      const { error } = budget
-        ? await supabase.from("budgets").update(payload).eq("id", budget.id)
-        : await supabase.from("budgets").insert(payload);
-      if (error) throw error;
-    },
+      }),
     onSuccess: () => {
       toast.success(t("orders.budgetSaved"));
       invalidate("budget");
@@ -598,19 +517,19 @@ function OrderDetailPage() {
   });
 
   const saveRepair = useMutation({
-    mutationFn: async (opts: { data?: RepairValues; state?: string; stamp?: "started_at" | "finished_at" }) => {
+    mutationFn: (opts: {
+      data?: RepairValues;
+      state?: string;
+      stamp?: "started_at" | "finished_at";
+    }) => {
       const desc = opts.data?.work_description ?? repairForm.getValues("work_description");
-      const payload = {
+      return repairsRepository.upsert(repair, {
         order_id: orderId,
         work_description: desc || null,
         technician_id: profile?.id ?? null,
         ...(opts.state ? { state: opts.state } : {}),
         ...(opts.stamp ? { [opts.stamp]: new Date().toISOString() } : {}),
-      };
-      const { error } = repair
-        ? await supabase.from("repairs").update(payload).eq("id", repair.id)
-        : await supabase.from("repairs").insert({ state: "in_progress", ...payload });
-      if (error) throw error;
+      });
     },
     onSuccess: () => {
       toast.success(t("orders.repairSaved"));
@@ -620,16 +539,14 @@ function OrderDetailPage() {
   });
 
   const addPayment = useMutation({
-    mutationFn: async (data: PaymentValues) => {
-      const { error } = await supabase.from("payments").insert({
+    mutationFn: (data: PaymentValues) =>
+      paymentsRepository.create({
         order_id: orderId,
         amount: data.amount,
         method: data.method,
         reference: data.reference || null,
         registered_by: profile?.id ?? null,
-      });
-      if (error) throw error;
-    },
+      }),
     onSuccess: () => {
       toast.success(t("orders.paymentAdded"));
       paymentForm.reset({ amount: 0, method: "cash", reference: "" });
@@ -639,13 +556,7 @@ function OrderDetailPage() {
   });
 
   const waiveBalance = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from("orders")
-        .update({ balance_waived: true })
-        .eq("id", orderId);
-      if (error) throw error;
-    },
+    mutationFn: () => ordersRepository.waiveBalance(orderId),
     onSuccess: () => {
       toast.success(t("orders.changesSaved"));
       invalidate("order");
@@ -654,11 +565,11 @@ function OrderDetailPage() {
   });
 
   const addPart = useMutation({
-    mutationFn: async (args: { stage: "quoted" | "used"; partId: string; qty: number }) => {
+    mutationFn: (args: { stage: "quoted" | "used"; partId: string; qty: number }) => {
       const part = catalog.find((c) => c.id === args.partId);
       if (!part) throw new Error(i18n.t("orders.selectPart"));
       if (args.qty <= 0) throw new Error(i18n.t("orders.invalidQty"));
-      const { error } = await supabase.from("order_parts").insert({
+      return orderPartsRepository.create({
         order_id: orderId,
         part_id: args.partId,
         stage: args.stage,
@@ -667,7 +578,6 @@ function OrderDetailPage() {
         in_stock_at_registration: part.stock >= args.qty,
         ...(args.stage === "quoted" && evaluation ? { evaluation_id: evaluation.id } : {}),
       });
-      if (error) throw error;
     },
     onSuccess: (_res, args) => {
       toast.success(t("orders.partAdded"));
@@ -687,7 +597,7 @@ function OrderDetailPage() {
   });
 
   const uploadPhoto = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: (file: File) => {
       if (photos.length >= MAX_PHOTOS)
         throw new Error(i18n.t("orders.maxPhotos", { max: MAX_PHOTOS }));
       if (file.size > 5 * 1024 * 1024) throw new Error(i18n.t("orders.photoTooLarge"));
@@ -695,12 +605,7 @@ function OrderDetailPage() {
         throw new Error(i18n.t("orders.photoFormat"));
       const ext = file.name.split(".").pop() || "jpg";
       const path = `${orderId}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("order-photos").upload(path, file);
-      if (upErr) throw upErr;
-      const { error } = await supabase
-        .from("order_photos")
-        .insert({ order_id: orderId, storage_path: path, uploaded_by: profile?.id });
-      if (error) throw error;
+      return photosRepository.upload(orderId, path, file, profile?.id ?? null);
     },
     onSuccess: () => {
       toast.success(t("orders.photoUploaded"));
@@ -710,11 +615,8 @@ function OrderDetailPage() {
   });
 
   const deletePhoto = useMutation({
-    mutationFn: async (p: { id: string; storage_path: string }) => {
-      await supabase.storage.from("order-photos").remove([p.storage_path]);
-      const { error } = await supabase.from("order_photos").delete().eq("id", p.id);
-      if (error) throw error;
-    },
+    mutationFn: (p: { id: string; storage_path: string }) =>
+      photosRepository.delete(p.id, p.storage_path),
     onSuccess: () => {
       toast.success(t("orders.photoDeleted"));
       qc.invalidateQueries({ queryKey: ["photos", orderId] });
@@ -724,7 +626,7 @@ function OrderDetailPage() {
 
   // ── Loading / not found ───────────────────────────────────────────────────
 
-  if (isLoading) return <OrderDetailSkeleton />;
+  if (isLoading || authLoading) return <OrderDetailSkeleton />;
   if (!order) return <p className="text-sm text-muted-foreground">{t("orders.notFound")}</p>;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1123,10 +1025,14 @@ function OrderDetailPage() {
               </p>
               <p className="mt-0.5 text-base font-semibold">{getStageLabel(order.stage, t)}</p>
             </div>
-            <div className="flex-1 min-w-0">{currentStepContent}</div>
+            <div className="flex flex-1 min-w-0 items-start justify-center">
+              <div className="w-full sm:max-w-xs">{currentStepContent}</div>
+            </div>
             {canAssignTech && (
               <div className="shrink-0 min-w-[180px] space-y-1.5">
-                <Label className="text-xs text-muted-foreground">{t("orders.assignTechnician")}</Label>
+                <Label className="text-xs text-muted-foreground">
+                  {t("orders.assignTechnician")}
+                </Label>
                 <Select
                   value={technicianAssign}
                   onValueChange={(v) => {
@@ -1155,7 +1061,6 @@ function OrderDetailPage() {
       {/* ── Main grid ── */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-
           {/* Client & equipment summary */}
           <Card>
             <CardHeader>
@@ -1203,7 +1108,9 @@ function OrderDetailPage() {
           </Card>
 
           {/* ── Evaluation section ── */}
-          <Card className={evalStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}>
+          <Card
+            className={evalStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base">{t("orders.evaluation")}</CardTitle>
               <SectionPill status={evalStatus} t={t} />
@@ -1271,7 +1178,9 @@ function OrderDetailPage() {
           </Card>
 
           {/* ── Budget section ── */}
-          <Card className={budgetStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}>
+          <Card
+            className={budgetStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base">{t("orders.budget")}</CardTitle>
               <SectionPill status={budgetStatus} t={t} />
@@ -1377,7 +1286,9 @@ function OrderDetailPage() {
           </Card>
 
           {/* ── Repair section ── */}
-          <Card className={repairStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}>
+          <Card
+            className={repairStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base">{t("orders.repair")}</CardTitle>
               <SectionPill status={repairStatus} t={t} />
@@ -1388,9 +1299,7 @@ function OrderDetailPage() {
               ) : (
                 <Form {...repairForm}>
                   <form
-                    onSubmit={repairForm.handleSubmit((data) =>
-                      saveRepair.mutate({ data })
-                    )}
+                    onSubmit={repairForm.handleSubmit((data) => saveRepair.mutate({ data }))}
                     className="space-y-4"
                   >
                     <FormField
@@ -1472,7 +1381,9 @@ function OrderDetailPage() {
           </Card>
 
           {/* ── Payments section ── */}
-          <Card className={paymentStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}>
+          <Card
+            className={paymentStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base">{t("orders.payments")}</CardTitle>
               <SectionPill status={paymentStatus} t={t} />
@@ -1494,7 +1405,9 @@ function OrderDetailPage() {
                     </div>
                     <div className="rounded-md border px-3 py-2">
                       <p className="text-xs text-muted-foreground">{t("orders.balance")}</p>
-                      <p className={`font-semibold ${balance > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                      <p
+                        className={`font-semibold ${balance > 0 ? "text-destructive" : "text-emerald-600"}`}
+                      >
                         {money(balance)}
                       </p>
                     </div>
@@ -1666,7 +1579,11 @@ function OrderDetailPage() {
               />
               {canEditNotes && (
                 <div className="flex justify-end">
-                  <Button size="sm" onClick={() => saveNotes.mutate()} disabled={saveNotes.isPending}>
+                  <Button
+                    size="sm"
+                    onClick={() => saveNotes.mutate()}
+                    disabled={saveNotes.isPending}
+                  >
                     {t("orders.saveChanges")}
                   </Button>
                 </div>

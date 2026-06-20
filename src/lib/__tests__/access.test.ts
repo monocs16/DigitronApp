@@ -29,8 +29,14 @@ describe("levelFor — single roles", () => {
 
   it("super has edit on all operational modules", () => {
     const editModules: ModuleKey[] = [
-      "clientes", "equipo", "inventario",
-      "os_apertura", "os_evaluacion", "os_presupuesto", "os_reparacion", "os_cierre",
+      "clientes",
+      "equipo",
+      "inventario",
+      "os_apertura",
+      "os_evaluacion",
+      "os_presupuesto",
+      "os_reparacion",
+      "os_cierre",
       "seguridad",
     ];
     for (const mod of editModules) {
@@ -95,8 +101,14 @@ describe("canCreate", () => {
 describe("canEdit", () => {
   it("super can edit all operational and management modules", () => {
     const editModules: ModuleKey[] = [
-      "clientes", "equipo", "inventario",
-      "os_apertura", "os_evaluacion", "os_presupuesto", "os_reparacion", "os_cierre",
+      "clientes",
+      "equipo",
+      "inventario",
+      "os_apertura",
+      "os_evaluacion",
+      "os_presupuesto",
+      "os_reparacion",
+      "os_cierre",
       "seguridad",
     ];
     for (const mod of editModules) {

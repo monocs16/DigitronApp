@@ -14,7 +14,7 @@ concurrency:
 jobs:
   # ─── Job 1: fast quality gate ──────────────────────────────────────────────
   quality:
-    name: Lint · Type check · Unit tests
+    name: Lint · Type check · Unit tests · Coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -30,11 +30,23 @@ jobs:
       - name: Type check
         run: bun run tsc --noEmit
 
-      - name: Lint
+      - name: Lint (includes security rules)
         run: bun run lint
 
-      - name: Unit tests
-        run: bun run test:unit
+      - name: Dependency vulnerability audit
+        run: bun audit --audit-level moderate
+        continue-on-error: false
+
+      - name: Unit tests with coverage
+        run: bun run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
 
   # ─── Job 2: E2E against local Supabase ─────────────────────────────────────
   e2e:

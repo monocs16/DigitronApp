@@ -10,6 +10,7 @@ When creating or updating `tasks.md` artifacts in OpenSpec changes, you MUST:
 ## 1. Read openspec/config.yaml First
 
 **BEFORE** creating or updating any `tasks.md` file, you MUST read `openspec/config.yaml` to understand:
+
 - Backend and frontend-specific mandatory steps
 - Branch naming conventions
 - Task structure requirements
@@ -20,11 +21,13 @@ When creating or updating `tasks.md` artifacts in OpenSpec changes, you MUST:
 All implementation tasks MUST include these steps in the correct order:
 
 ### Step 0: Create Feature Branch (MUST BE FIRST)
+
 - **Location**: Must be the very first step (Step 0)
 - **Branch naming**: `feature/[ticket-id]` or `feature/[change-name]`
 - **Action**: Create and switch to feature branch before any code changes
 
 ### Mandatory Steps (Must Be Included):
+
 - **Step N**: Review and Update Existing Unit Tests (MANDATORY)
 - **Step N+1**: Run Unit Tests and Verify Database State (MANDATORY)
 - **Step N+2**: Manual Endpoint Testing with curl (MANDATORY) - **AGENT MUST EXECUTE**
@@ -40,6 +43,7 @@ All implementation tasks MUST include these steps in the correct order:
 **Agent Responsibility**: The coding agent MUST execute unit tests, validate database integrity before/after execution, and produce a test report artifact in the change spec folder. This is NOT optional and cannot be delegated to the user.
 
 **Implementation Steps** (Agent must perform):
+
 1. **Prepare Test Environment**:
    - Ensure required services are available (database, cache, dependencies)
    - Capture pre-test database state relevant to the change (counts, key records, checksums, or snapshots)
@@ -67,6 +71,7 @@ All implementation tasks MUST include these steps in the correct order:
 6. **Mark Task as Completed**: Only after unit tests pass (or approved exceptions are documented), database state is verified/restored, and the report file is created, mark Step N+1 as completed in `tasks.md`.
 
 **Report Template** (store in `specs/<change-name>/reports/`):
+
 ```markdown
 # Step N+1 Report - Unit Tests and Database Verification
 
@@ -75,16 +80,19 @@ All implementation tasks MUST include these steps in the correct order:
 - Agent: <agent-name>
 
 ## Commands Executed
+
 - `<command 1>`
 - `<command 2>`
 
 ## Unit Test Results
+
 - Targeted tests: X passed, Y failed, Z skipped
 - Full/required suite: X passed, Y failed, Z skipped
 - Runtime: <duration>
 - Notes: <flaky tests, retries, exceptions>
 
 ## Database State Verification
+
 - Pre-test baseline:
   - <metric/table/check>: <value>
 - Post-test validation:
@@ -93,16 +101,19 @@ All implementation tasks MUST include these steps in the correct order:
 - Restoration actions (if any): <actions>
 
 ## Outcome
+
 - Step N+1 status: PASS/FAIL
 - Blocking issues: <none or list>
 ```
 
 **Dependencies**:
+
 - Test runner and project test dependencies installed
 - Database access for state verification/restoration
 - Permission to create report files in `specs/<change-name>/reports/`
 
 **Notes**:
+
 - **The agent MUST execute tests itself** - never ask the user to run tests
 - This step is mandatory even when code changes look small
 - Report naming must follow the required pattern for traceability
@@ -113,6 +124,7 @@ All implementation tasks MUST include these steps in the correct order:
 **Agent Responsibility**: The coding agent MUST execute all curl commands and verify responses. This is NOT optional and cannot be delegated to the user.
 
 **Implementation Steps** (Agent must perform):
+
 1. **Prepare Test Environment**:
    - Ensure the backend server is running (start if needed)
    - Verify database connection is active
@@ -158,11 +170,13 @@ All implementation tasks MUST include these steps in the correct order:
 7. **Mark Task as Completed**: Only after all curl tests pass and database state is restored, mark the task as completed in `tasks.md`
 
 **Dependencies**:
+
 - Backend server running (agent must start if needed)
 - Database access for state restoration
 - curl command-line tool
 
 **Notes**:
+
 - This step is MANDATORY for all new endpoints
 - **The agent MUST execute all curl commands itself** - never ask the user to run tests
 - All CREATE/UPDATE/DELETE operations must restore database to original state after testing
@@ -176,11 +190,13 @@ All implementation tasks MUST include these steps in the correct order:
 **Agent Responsibility**: The coding agent MUST execute all E2E tests using Playwright MCP tools. This is NOT optional and cannot be delegated to the user.
 
 **When This Applies**:
+
 - Frontend changes that affect user workflows
 - Integration between frontend and backend endpoints
 - User-facing features that require browser interaction
 
 **Implementation Steps** (Agent must perform):
+
 1. **Prepare Test Environment**:
    - Ensure both frontend and backend servers are running (start if needed)
    - Verify database is in a known state
@@ -218,12 +234,14 @@ All implementation tasks MUST include these steps in the correct order:
 7. **Mark Task as Completed**: Only after all E2E tests pass and environment is restored, mark the task as completed in `tasks.md`
 
 **Dependencies**:
+
 - Frontend server running (agent must start if needed)
 - Backend server running (agent must start if needed)
 - Playwright MCP tools available
 - Database access for verification and cleanup
 
 **Notes**:
+
 - **The agent MUST execute all E2E tests itself** - never ask the user to run tests
 - Use incremental waits (1-3 seconds) with snapshot checks rather than long waits
 - Always restore database state after tests that modify data
@@ -233,6 +251,7 @@ All implementation tasks MUST include these steps in the correct order:
 ## 4. Verification Checklist
 
 Before finalizing any `tasks.md` file, verify:
+
 - [ ] Step 0 (Create Feature Branch) is the FIRST step
 - [ ] All mandatory steps from config.yaml are included
 - [ ] Steps are numbered sequentially
@@ -246,6 +265,7 @@ Before finalizing any `tasks.md` file, verify:
 ## 5. When This Applies
 
 This rule applies when:
+
 - Creating `tasks.md` via `/opsx:ff` (fast-forward) or `openspec-ff-change` skill
 - Creating `tasks.md` via `/opsx:continue` (continue change) or `openspec-continue-change` skill
 - Updating existing `tasks.md` files
@@ -261,12 +281,15 @@ This rule applies when:
 - [ ] 0.2 Verify branch creation and current branch status
 
 ## 1. Backend: Validator Tests (TDD)
+
 ...
 
 ## 8. Backend: Review and Update Existing Unit Tests (MANDATORY)
+
 ...
 
 ## 9. Backend: Run Unit Tests and Verify Database State (MANDATORY)
+
 - [ ] 9.1 Capture pre-test database baseline for impacted entities
 - [ ] 9.2 Run targeted unit tests for changed modules
 - [ ] 9.3 Run required broader unit test suite from config
@@ -275,6 +298,7 @@ This rule applies when:
 - [ ] 9.6 Mark step complete only after tests pass and report exists
 
 ## 10. Backend: Manual Endpoint Testing with curl (MANDATORY - AGENT MUST EXECUTE)
+
 - [ ] 10.1 Ensure backend server is running
 - [ ] 10.2 Test GET endpoints with curl and verify responses
 - [ ] 10.3 Test POST endpoints with curl, verify creation, then restore database state
@@ -285,6 +309,7 @@ This rule applies when:
 - [ ] 10.8 Verify database state matches pre-test state
 
 ## 11. Frontend: E2E Testing with Playwright MCP (MANDATORY if applicable - AGENT MUST EXECUTE)
+
 - [ ] 11.1 Ensure frontend and backend servers are running
 - [ ] 11.2 Navigate to application using Playwright MCP browser_navigate
 - [ ] 11.3 Execute complete user workflow using Playwright MCP tools
@@ -294,6 +319,7 @@ This rule applies when:
 - [ ] 11.7 Document test scenarios and outcomes
 
 ## 16. Update Technical Documentation (MANDATORY)
+
 ...
 ```
 

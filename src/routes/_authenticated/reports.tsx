@@ -5,7 +5,12 @@ import { useTranslation } from "react-i18next";
 import { Download } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  ordersRepository,
+  paymentsRepository,
+  profilesRepository,
+  orderPartsRepository,
+} from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canRead } from "@/lib/access";
 import { PageHeader } from "@/components/page-header";
@@ -49,50 +54,25 @@ function ReportsPage() {
   const { data: orders = [] } = useQuery({
     queryKey: ["orders-reports"],
     enabled: mayView,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select(
-          "id, order_number, stage, technician_id, client_id, created_at, warranty_origin_id, customers(name)",
-        );
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => ordersRepository.getAllForReports(),
   });
 
   const { data: payments = [] } = useQuery({
     queryKey: ["payments-reports"],
     enabled: mayView,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("payments").select("amount, paid_at");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => paymentsRepository.getAllForReports(),
   });
 
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-all"],
     enabled: mayView,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, full_name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => profilesRepository.getAllMin(),
   });
 
   const { data: usedParts = [] } = useQuery({
     queryKey: ["used-parts-reports"],
     enabled: mayView,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_parts")
-        .select(
-          "part_id, quantity, unit_cost_at_registration, created_at, parts(part_code, description)",
-        )
-        .eq("stage", "used");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => orderPartsRepository.getAllUsedForReports(),
   });
 
   const nameById = new Map(profiles.map((p) => [p.id, p.full_name]));

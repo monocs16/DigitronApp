@@ -4,6 +4,7 @@ description: Identify and update required technical documentation based on imple
 author: LIDR.co
 version: 1.0.0
 ---
+
 # update-docs Skill
 
 Use it when this workflow is required in the project.

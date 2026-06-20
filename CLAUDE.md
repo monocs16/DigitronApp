@@ -14,14 +14,15 @@ alwaysApply: true
 - **Pattern Detection**: Detect and highlight repeated code patterns.
 
 ## 2. Language Standards
+
 - **English Only**: All technical artifacts must always use English, including:
-    - Code (variables, functions, classes, comments, error messages, log messages)
-    - Documentation (README, guides, API docs)
-    - Jira tickets (titles, descriptions, comments)
-    - Data schemas and database names
-    - Configuration files and scripts
-    - Git commit messages
-    - Test names and descriptions
+  - Code (variables, functions, classes, comments, error messages, log messages)
+  - Documentation (README, guides, API docs)
+  - Jira tickets (titles, descriptions, comments)
+  - Data schemas and database names
+  - Configuration files and scripts
+  - Git commit messages
+  - Test names and descriptions
 
 ## 3. Specific standards
 
@@ -43,6 +44,7 @@ For detailed standards and guidelines specific to different areas of the project
 Planning workflows must run with Opus high reasoning.
 
 This requirement applies to:
+
 - `enrich-us`
 - `openspec-ff-change`
 - `openspec-continue-change`
@@ -69,4 +71,3 @@ Required order:
 4. Re-run verification against the updated artifacts before archiving.
 
 Do not apply direct code-only fixes in this window without updating OpenSpec artifacts.
-

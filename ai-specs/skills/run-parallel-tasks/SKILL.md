@@ -25,6 +25,7 @@ Resolves tasks from explicit command arguments first, otherwise reads `parallel-
 Parse user input for explicit task arguments after the trigger phrase (for example, in `run parallel tasks SCRUM-83 SCRUM-84`, the arguments are `SCRUM-83` and `SCRUM-84`).
 
 If one or more explicit task arguments are present:
+
 - Do **not** read `parallel-tasks.md`.
 - Build tasks directly from arguments.
 - For each argument `<TASK_ID>`, create:
@@ -33,6 +34,7 @@ If one or more explicit task arguments are present:
 - Announce: "Using explicit task arguments (overriding file): name-1, name-2, ..."
 
 If no explicit task arguments are present:
+
 - Read `parallel-tasks.md` from the references subfolder.
 - Extract every uncommented task block. A task block starts with `### Task` and contains:
   - `name:` — kebab-case change name (required)
@@ -46,6 +48,7 @@ If no explicit task arguments are present:
 **Always run `enrich-us` for every task**, regardless of source format. Enrichment is mandatory.
 
 First, resolve the raw US text by source:
+
 - **`us: inline`** — use the `description:` field as the raw US input.
 - **`us: <file-path>`** — read the file at that path as the raw US input.
 - **`us: <JIRA-ID>`** — pass the ticket ID directly to `enrich-us`; it fetches and enriches in one step.
@@ -60,6 +63,7 @@ Store each enriched US in memory before proceeding to Step 3.
 Launch all agents simultaneously using the Agent tool with `run_in_background: true`.
 
 Each agent must receive a **fully self-contained prompt** — agents start cold with no session memory. Use the template below, substituting:
+
 - `{{CHANGE_NAME}}` — the task `name` field
 - `{{ENRICHED_US}}` — the full resolved enriched US text from Step 2
 - `{{PROJECT_ROOT}}` — absolute path to the project root

@@ -1,0 +1,13 @@
+export { auditRepository } from "./audit.repository";
+export { budgetsRepository } from "./budgets.repository";
+export { customersRepository } from "./customers.repository";
+export { equipmentRepository } from "./equipment.repository";
+export { evaluationsRepository } from "./evaluations.repository";
+export { orderPartsRepository } from "./order-parts.repository";
+export { ordersRepository } from "./orders.repository";
+export { paymentsRepository } from "./payments.repository";
+export { photosRepository } from "./photos.repository";
+export { profilesRepository } from "./profiles.repository";
+export { repairsRepository } from "./repairs.repository";
+export { partsRepository } from "./parts.repository";
+export { userRolesRepository } from "./user-roles.repository";

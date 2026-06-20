@@ -124,14 +124,18 @@ Use this concise structure in the final chat response:
 Spec demo completed for: <spec/change>
 
 Frontend walkthrough:
+
 - <step/result>
 
 Backend API walkthrough:
+
 - <curl + key response note>
 
 Data restore:
+
 - <restored / not needed / failed + reason>
 
 Next:
+
 - You can continue in the open browser window, or ask me to close it.
 ```
