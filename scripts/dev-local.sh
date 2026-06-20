@@ -63,4 +63,4 @@ echo "  Supabase → $API_URL"
 echo "  ─────────────────────────────────────────────────"
 echo ""
 
-exec bun --bun vite dev
+exec pnpm exec vite dev

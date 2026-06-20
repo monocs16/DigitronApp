@@ -6,7 +6,7 @@
  * dist/client/  → .vercel/output/static/       (CDN-served static files)
  * dist/server/  → .vercel/output/functions/render.func/  (Edge Function)
  *
- * Usage: run after `bun run build:vercel` (handled by the `deploy:vercel` script).
+ * Usage: run after `pnpm run build:vercel`.
  */
 
 import { cpSync, mkdirSync, rmSync, writeFileSync } from "fs";

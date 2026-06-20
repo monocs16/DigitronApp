@@ -5,9 +5,9 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
-// Cloudflare Workers runtime in dev is slow and can hang under `bun --bun` (WebSocket gaps).
+// Cloudflare Workers runtime in dev is slow and can hang locally (WebSocket gaps).
 // Local Supabase development uses the standard Vite dev server on :5173.
-// Use `bun run dev:cf` when you need the Workers runtime locally.
+// Use `pnpm run dev:cf` when you need the Workers runtime locally.
 //
 // Set DEPLOY_TARGET=vercel to opt out of the Cloudflare plugin (used by build:vercel).
 const isVercelBuild = process.env.DEPLOY_TARGET === "vercel";

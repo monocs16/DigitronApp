@@ -253,8 +253,8 @@ Convenciones de código: [`ENGINEERING.md`](./ENGINEERING.md). Guía para agente
 | Archivos              | Supabase Storage (`order-photos`)                             |
 | Formularios           | React Hook Form + Zod                                         |
 | PDF                   | jsPDF + jspdf-autotable                                       |
-| Deploy (opcional)     | Cloudflare Workers                                            |
-| Runtime local         | [Bun](https://bun.sh) recomendado                             |
+| Deploy (opcional)     | Cloudflare Workers o Vercel                                     |
+| Runtime local         | Node **≥ 20.19** / **≥ 22.12** + [pnpm](https://pnpm.io)       |
 
 ---
 
@@ -262,7 +262,7 @@ Convenciones de código: [`ENGINEERING.md`](./ENGINEERING.md). Guía para agente
 
 Checklist antes de desarrollar:
 
-- [ ] [Bun](https://bun.sh) instalado **o** Node **≥ 20.19** / **≥ 22.12** ([`.nvmrc`](./.nvmrc) → 22)
+- [ ] Node **≥ 20.19** / **≥ 22.12** ([`.nvmrc`](./.nvmrc) → 22) y [pnpm](https://pnpm.io) (`corepack enable && corepack prepare`)
 - [ ] Proyecto en [Supabase](https://supabase.com) creado
 - [ ] [Supabase CLI](https://supabase.com/docs/guides/cli) (`brew install supabase/tap/supabase` en Mac ARM: `arch -arm64 brew install supabase/tap/supabase`)
 - [ ] Migraciones aplicadas (`supabase db push`)
@@ -278,7 +278,7 @@ Checklist antes de desarrollar:
 ```bash
 git clone https://github.com/TU_ORG/digitron-app.git
 cd digitron-app
-bun install
+pnpm install
 ```
 
 ### 2. Variables de entorno
@@ -302,7 +302,7 @@ supabase db push
 ### 4. Arrancar la app
 
 ```bash
-bun run dev
+pnpm run dev
 ```
 
 Debes ver:
@@ -450,21 +450,22 @@ digitron-app/
 
 | Comando             | Uso                                                                           |
 | ------------------- | ----------------------------------------------------------------------------- |
-| `bun run dev`       | Desarrollo en **http://localhost:5173** (`CF_WORKERS=0`, sin runtime Workers) |
-| `bun run dev:cf`    | Dev con runtime Cloudflare (más lento; probar paridad con producción)         |
-| `bun run build`     | Build producción (`dist/`, con Cloudflare)                                    |
-| `bun run build:dev` | Build modo development                                                        |
-| `bun run preview`   | Servir el build localmente                                                    |
-| `bun run lint`      | ESLint                                                                        |
-| `bun run format`    | Prettier en el repo                                                           |
+| `pnpm run dev`       | Desarrollo en **http://localhost:5173** (`CF_WORKERS=0`, sin runtime Workers) |
+| `pnpm run dev:cf`    | Dev con runtime Cloudflare (más lento; probar paridad con producción)         |
+| `pnpm run build`     | Build producción (`dist/`, con Cloudflare)                                    |
+| `pnpm run build:vercel` | Build para Vercel (`.vercel/output/`)                                    |
+| `pnpm run build:dev` | Build modo development                                                        |
+| `pnpm run preview`   | Servir el build localmente                                                    |
+| `pnpm run lint`      | ESLint                                                                        |
+| `pnpm run format`    | Prettier en el repo                                                           |
 
 ---
 
 ## Desarrollo local
 
-### Por qué `bun run dev` y no solo `vite dev`
+### Por qué `pnpm run dev` y no solo `vite dev`
 
-- El plugin **Cloudflare** en dev + runtime **Bun** puede colgar el arranque y no exponer puerto.
+- El plugin **Cloudflare** en dev puede colgar el arranque y no exponer puerto.
 - `vite.config.ts` desactiva Cloudflare cuando `CF_WORKERS=0` (valor por defecto del script `dev`).
 - `build` / `preview` sí activan Cloudflare (`CF_WORKERS=1`).
 
@@ -478,7 +479,7 @@ digitron-app/
 ### Electron (futuro)
 
 ```bash
-ELECTRON=true bun run build
+ELECTRON=true pnpm run build
 ```
 
 (`base: './'` en Vite para cargar desde `file://`.)
@@ -487,20 +488,20 @@ ELECTRON=true bun run build
 
 | Síntoma                                    | Qué hacer                                                                                                                       |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| No aparece `Local: http://localhost:5173/` | Usa `bun run dev` (no `vite dev` a mano). No uses `dev:cf` salvo que pruebes Workers.                                           |
-| `lightningcss.darwin-x64.node` not found   | Node bajo Rosetta (x64) con deps ARM. Usa `bun run dev` o instala Node 22 **arm64** (`nvm install 22` en terminal sin Rosetta). |
+| No aparece `Local: http://localhost:5173/` | Usa `pnpm run dev` (no `vite dev` a mano). No uses `dev:cf` salvo que pruebes Workers.                                           |
+| `lightningcss.darwin-x64.node` not found   | Node bajo Rosetta (x64) con deps ARM. Instala Node 22 **arm64** (`nvm install 22` en terminal sin Rosetta). |
 | Missing Supabase environment variables     | Crea `.env.local` desde `.env.example`.                                                                                         |
 | 401 en server functions                    | Usuario no logueado o llamada desde loader público sin Bearer.                                                                  |
 | `/usuarios` falla al crear usuario         | Falta `SUPABASE_SERVICE_ROLE_KEY` en `.env.local`.                                                                              |
 | `brew install supabase` falla en Mac ARM   | `arch -arm64 brew install supabase/tap/supabase`                                                                                |
-| Build falla por versión de Node            | `nvm use` → Node 22, o `bun --bun run build`                                                                                    |
+| Build falla por versión de Node            | `nvm use` → Node 22, luego `pnpm run build`                                                                                    |
 
 ---
 
 ## Despliegue en Cloudflare (opcional)
 
 1. Variables en Cloudflare Workers / build: mismas `SUPABASE_*`; las `VITE_*` se embeben en el cliente en build time.
-2. `bun run build`
+2. `pnpm run build`
 3. Despliegue con [Wrangler](https://developers.cloudflare.com/workers/wrangler/) según la [guía TanStack Start + Cloudflare](https://developers.cloudflare.com/workers/framework-guides/web-apps/tanstack/).
 
 Entry del worker: [`src/server.ts`](./src/server.ts) (envuelve el handler de TanStack Start y páginas de error).

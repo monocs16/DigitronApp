@@ -91,14 +91,14 @@ Operaciones que hoy usan **service role** (solo servidor): gestión de usuarios 
 ## Comandos
 
 ```bash
-bun install
-bun run dev      # http://localhost:5173 (CF_WORKERS=0, sin plugin Cloudflare en dev)
-bun run dev:cf   # dev con runtime Cloudflare Workers (solo si hace falta)
-bun run build    # producción (CF_WORKERS=1)
-bun run lint
+pnpm install
+pnpm run dev      # http://localhost:5173 (CF_WORKERS=0, sin plugin Cloudflare en dev)
+pnpm run dev:cf   # dev con runtime Cloudflare Workers (solo si hace falta)
+pnpm run build    # producción (CF_WORKERS=1)
+pnpm run lint
 ```
 
-En dev, el plugin Cloudflare + Bun puede colgar el arranque; por eso `dev` usa `CF_WORKERS=0`.
+En dev, el plugin Cloudflare puede colgar el arranque; por eso `dev` usa `CF_WORKERS=0`.
 
 ---
 
