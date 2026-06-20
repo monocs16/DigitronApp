@@ -28,6 +28,7 @@ alwaysApply: true
 
 For detailed standards and guidelines specific to different areas of the project, refer to:
 
+- [Service Order Flow](./docs/service-order-flow.md) — **canonical business process diagram**. Any work touching stage transitions, role gating, UI actions, or server functions must consult this first. Update it before changing implementation.
 - [Backend Standards](./docs/backend-standards.md) - API development, database patterns, testing, security and backend best practices
 - [Frontend Standards](./docs/frontend-standards.md) - React components, UI/UX guidelines, and frontend architecture
 - [Documentation Standards](./docs/documentation-standards.md) - Technical documentation structure, formatting, and maintenance guidelines, including AI standards like this document
