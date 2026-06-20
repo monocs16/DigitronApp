@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same ref to save minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Job 1: fast quality gate ──────────────────────────────────────────────
+  quality:
+    name: Lint · Type check · Unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run tsc --noEmit
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Unit tests
+        run: bun run test:unit
+
+  # ─── Job 2: E2E against local Supabase ─────────────────────────────────────
+  e2e:
+    name: E2E tests (Playwright + Supabase)
+    runs-on: ubuntu-latest
+    # Only run E2E on PRs to main and direct pushes to main — skip on feature pushes.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Start local Supabase
+        run: supabase start
+        timeout-minutes: 5
+
+      - name: Export Supabase credentials to environment
+        run: |
+          eval "$(supabase status -o env)"
+          echo "VITE_SUPABASE_URL=$API_URL"                  >> $GITHUB_ENV
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"     >> $GITHUB_ENV
+          echo "SUPABASE_URL=$API_URL"                       >> $GITHUB_ENV
+          echo "SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"          >> $GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> $GITHUB_ENV
+
+      - name: Seed admin user
+        run: |
+          API_URL=$VITE_SUPABASE_URL \
+          SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY \
+          node scripts/seed-admin.mjs
+
+      - name: Install Playwright + Chromium
+        run: bunx playwright install chromium --with-deps
+
+      - name: Start dev server in background
+        run: CF_WORKERS=0 bun --bun vite dev &
+
+      - name: Wait for dev server to be ready
+        run: |
+          timeout 60 bash -c \
+            'until curl -sf http://localhost:5173 > /dev/null 2>&1; do sleep 1; done'
+
+      - name: Run E2E tests
+        run: bun run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/results/
+          retention-days: 7
