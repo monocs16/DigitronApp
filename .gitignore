@@ -47,3 +47,7 @@ tmp/
 .worktrees/
 .mcp.json
 supabase/.branches/
+
+# Playwright auth storage state (session tokens — never commit)
+e2e/fixtures/*.json
+e2e/results/
