@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import i18n from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 
 export type PartEditing = {
   id: string;
@@ -24,55 +33,58 @@ export type PartEditing = {
   supplier: string | null;
 };
 
+const partSchema = z.object({
+  part_code: z.string().min(1, "Code is required"),
+  description: z.string().min(1, "Description is required"),
+  unit_cost: z.coerce.number().min(0),
+  stock: z.coerce.number().int().min(0),
+  supplier: z.string(),
+});
+
+type PartFormValues = z.infer<typeof partSchema>;
+
 interface PartFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Pass a row to switch to edit mode; leave undefined for create mode. */
   editing?: PartEditing | null;
-  /** Called after a successful save, with the id of the created/updated record. */
   onSuccess?: (id: string) => void;
 }
 
-const EMPTY_FORM = {
-  part_code: "",
-  description: "",
-  unit_cost: "",
-  stock: "",
-  supplier: "",
-};
+const EMPTY: PartFormValues = { part_code: "", description: "", unit_cost: 0, stock: 0, supplier: "" };
 
 export function PartFormDialog({ open, onOpenChange, editing, onSuccess }: PartFormDialogProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const [form, setForm] = useState(EMPTY_FORM);
+  const form = useForm<PartFormValues>({
+    resolver: zodResolver(partSchema),
+    defaultValues: EMPTY,
+  });
 
   useEffect(() => {
     if (open) {
-      if (editing) {
-        setForm({
-          part_code: editing.part_code,
-          description: editing.description,
-          unit_cost: String(editing.unit_cost),
-          stock: String(editing.stock),
-          supplier: editing.supplier ?? "",
-        });
-      } else {
-        setForm(EMPTY_FORM);
-      }
+      form.reset(
+        editing
+          ? {
+              part_code: editing.part_code,
+              description: editing.description,
+              unit_cost: editing.unit_cost,
+              stock: editing.stock,
+              supplier: editing.supplier ?? "",
+            }
+          : EMPTY,
+      );
     }
-  }, [open, editing]);
+  }, [open, editing, form]);
 
   const upsert = useMutation({
-    mutationFn: async () => {
-      if (!form.part_code.trim() || !form.description.trim())
-        throw new Error(i18n.t("inventory.fieldsRequired"));
+    mutationFn: async (values: PartFormValues) => {
       const payload = {
-        part_code: form.part_code.trim(),
-        description: form.description.trim(),
-        unit_cost: Number(form.unit_cost) || 0,
-        stock: Number(form.stock) || 0,
-        supplier: form.supplier.trim() || null,
+        part_code: values.part_code.trim(),
+        description: values.description.trim(),
+        unit_cost: values.unit_cost,
+        stock: values.stock,
+        supplier: values.supplier.trim() || null,
       };
       if (editing) {
         const { error } = await supabase.from("parts").update(payload).eq("id", editing.id);
@@ -93,70 +105,93 @@ export function PartFormDialog({ open, onOpenChange, editing, onSuccess }: PartF
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const onSubmit = form.handleSubmit((values) => upsert.mutate(values));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editing ? t("inventory.editPart") : t("inventory.newPart")}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="part-code">{t("inventory.partCode")} *</Label>
-              <Input
-                id="part-code"
-                value={form.part_code}
-                onChange={(e) => setForm({ ...form, part_code: e.target.value })}
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4 py-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="part_code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.partCode")} *</FormLabel>
+                    <FormControl>
+                      <Input autoFocus {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="supplier"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.supplier")}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>{t("inventory.description")} *</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="unit_cost"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.unitCost")}</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" step="0.01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="stock"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.stock")}</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" step="1" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="part-supplier">{t("inventory.supplier")}</Label>
-              <Input
-                id="part-supplier"
-                value={form.supplier}
-                onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="part-desc">{t("inventory.description")} *</Label>
-              <Input
-                id="part-desc"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="part-cost">{t("inventory.unitCost")}</Label>
-              <Input
-                id="part-cost"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.unit_cost}
-                onChange={(e) => setForm({ ...form, unit_cost: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="part-stock">{t("inventory.stock")}</Label>
-              <Input
-                id="part-stock"
-                type="number"
-                min="0"
-                step="1"
-                value={form.stock}
-                onChange={(e) => setForm({ ...form, stock: e.target.value })}
-              />
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={() => upsert.mutate()} disabled={upsert.isPending}>
-            {upsert.isPending ? t("common.saving") : t("common.save")}
-          </Button>
-        </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={upsert.isPending}>
+                {upsert.isPending ? t("common.saving") : t("common.save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

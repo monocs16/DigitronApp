@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import i18n from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -15,6 +16,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 
 export type ClientEditing = {
   id: string;
@@ -26,30 +35,38 @@ export type ClientEditing = {
   address: string | null;
 };
 
+const clientSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  tax_id: z.string(),
+  phone1: z.string(),
+  phone2: z.string(),
+  email: z.string().email("Invalid email").or(z.literal("")),
+  address: z.string(),
+});
+
+type ClientFormValues = z.infer<typeof clientSchema>;
+
 interface ClientFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Pass a row to switch to edit mode; leave undefined for create mode. */
   editing?: ClientEditing | null;
-  /** Called after a successful save, with the id of the created/updated record. */
   onSuccess?: (id: string) => void;
 }
 
-const EMPTY_FORM = { name: "", tax_id: "", phone1: "", phone2: "", email: "", address: "" };
+const EMPTY: ClientFormValues = { name: "", tax_id: "", phone1: "", phone2: "", email: "", address: "" };
 
-export function ClientFormDialog({
-  open,
-  onOpenChange,
-  editing,
-  onSuccess,
-}: ClientFormDialogProps) {
+export function ClientFormDialog({ open, onOpenChange, editing, onSuccess }: ClientFormDialogProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [form, setForm] = useState(EMPTY_FORM);
+
+  const form = useForm<ClientFormValues>({
+    resolver: zodResolver(clientSchema),
+    defaultValues: EMPTY,
+  });
 
   useEffect(() => {
     if (open) {
-      setForm(
+      form.reset(
         editing
           ? {
               name: editing.name,
@@ -59,22 +76,20 @@ export function ClientFormDialog({
               email: editing.email ?? "",
               address: editing.address ?? "",
             }
-          : EMPTY_FORM,
+          : EMPTY,
       );
     }
-  }, [open, editing]);
+  }, [open, editing, form]);
 
   const upsert = useMutation({
-    mutationFn: async () => {
-      const name = form.name.trim();
-      if (!name) throw new Error(i18n.t("clients.nameRequired"));
+    mutationFn: async (values: ClientFormValues) => {
       const payload = {
-        name,
-        tax_id: form.tax_id.trim() || null,
-        phone1: form.phone1.trim() || null,
-        phone2: form.phone2.trim() || null,
-        email: form.email.trim() || null,
-        address: form.address.trim() || null,
+        name: values.name.trim(),
+        tax_id: values.tax_id.trim() || null,
+        phone1: values.phone1.trim() || null,
+        phone2: values.phone2.trim() || null,
+        email: values.email.trim() || null,
+        address: values.address.trim() || null,
       };
       if (editing) {
         const { error } = await supabase.from("customers").update(payload).eq("id", editing.id);
@@ -100,73 +115,106 @@ export function ClientFormDialog({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const onSubmit = form.handleSubmit((values) => upsert.mutate(values));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editing ? t("clients.editClient") : t("clients.newClient")}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="cl-name">{t("common.name")} *</Label>
-              <Input
-                id="cl-name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+        <Form {...form}>
+          <form onSubmit={onSubmit} className="space-y-4 py-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>{t("common.name")} *</FormLabel>
+                    <FormControl>
+                      <Input autoFocus {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="tax_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("clients.taxId")}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("common.email")}</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone1"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("clients.phone1")}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone2"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("clients.phone2")}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>{t("clients.address")}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="cl-tax">{t("clients.taxId")}</Label>
-              <Input
-                id="cl-tax"
-                value={form.tax_id}
-                onChange={(e) => setForm({ ...form, tax_id: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cl-email">{t("common.email")}</Label>
-              <Input
-                id="cl-email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cl-phone1">{t("clients.phone1")}</Label>
-              <Input
-                id="cl-phone1"
-                value={form.phone1}
-                onChange={(e) => setForm({ ...form, phone1: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cl-phone2">{t("clients.phone2")}</Label>
-              <Input
-                id="cl-phone2"
-                value={form.phone2}
-                onChange={(e) => setForm({ ...form, phone2: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="cl-address">{t("clients.address")}</Label>
-              <Textarea
-                id="cl-address"
-                value={form.address}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
-              />
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={() => upsert.mutate()} disabled={upsert.isPending}>
-            {upsert.isPending ? t("common.saving") : t("common.save")}
-          </Button>
-        </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={upsert.isPending}>
+                {upsert.isPending ? t("common.saving") : t("common.save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

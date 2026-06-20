@@ -4,7 +4,7 @@
     {
       "name": "digitron-local",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["scripts/dev-local.sh"],
+      "runtimeArgs": ["/Users/bradguillen/Documents/dev/side-projects/digitron-app/scripts/dev-local.sh"],
       "port": 5173
     }
   ]

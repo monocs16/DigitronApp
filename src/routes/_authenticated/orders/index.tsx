@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { PlusCircle, Search } from "lucide-react";
@@ -54,6 +54,7 @@ type OrderRow = {
 function OrdersPage() {
   const { t } = useTranslation();
   const { clientId, equipmentId } = Route.useSearch();
+  const navigate = useNavigate();
   const [stage, setStage] = useState<string>("all");
   const [technician, setTechnician] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
@@ -214,12 +215,17 @@ function OrdersPage() {
               </TableHeader>
               <TableBody>
                 {filtered.map((o) => (
-                  <TableRow key={o.id} className="cursor-pointer">
+                  <TableRow
+                    key={o.id}
+                    className="cursor-pointer"
+                    onClick={() => navigate({ to: "/orders/$orderId", params: { orderId: o.id } })}
+                  >
                     <TableCell className="font-medium">
                       <Link
                         to="/orders/$orderId"
                         params={{ orderId: o.id }}
                         className="hover:underline"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {o.order_number}
                       </Link>
