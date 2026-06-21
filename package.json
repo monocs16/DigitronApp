@@ -3,7 +3,12 @@
   "private": true,
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": ["core-js", "esbuild", "sharp", "workerd"]
+    "onlyBuiltDependencies": [
+      "core-js",
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
   },
   "engines": {
     "node": ">=20.19.0 || >=22.12.0",
@@ -22,7 +27,7 @@
     "supabase:reset": "supabase db reset && pnpm run seed:admin",
     "seed:admin": "bash -c 'eval \"$(supabase status -o env)\"; API_URL=\"$API_URL\" SERVICE_ROLE_KEY=\"$SERVICE_ROLE_KEY\" node scripts/seed-admin.mjs'",
     "build": "CF_WORKERS=1 vite build",
-    "build:vercel": "DEPLOY_TARGET=vercel vite build && node scripts/build-vercel.mjs",
+    "build:vercel": "DEPLOY_TARGET=vercel NITRO_PRESET=vercel vite build",
     "build:dev": "vite build --mode development",
     "preview": "CF_WORKERS=1 vite preview",
     "typecheck": "tsc --noEmit",
@@ -114,6 +119,7 @@
     "eslint-plugin-security": "^4.0.1",
     "globals": "^15.15.0",
     "jsdom": "^29.1.1",
+    "nitro": "3.0.260610-beta",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",

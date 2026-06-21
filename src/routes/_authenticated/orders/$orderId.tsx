@@ -26,7 +26,7 @@ import {
 } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import i18n from "@/lib/i18n";
-import { formatAmount } from "@/lib/utils";
+import { formatAmount, formatDate, formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -274,7 +274,7 @@ function PartsEditor({
       )}
       {canEdit && (
         <div className="flex items-end gap-2">
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <Select value={partId} onValueChange={setPartId}>
               <SelectTrigger>
                 <SelectValue placeholder={t("orders.selectPart")} />
@@ -843,7 +843,7 @@ function OrderDetailPage() {
             {order.decision_notified_at && (
               <p className="text-xs text-muted-foreground">
                 {t("orders.decisionNotifiedAt", {
-                  date: new Date(order.decision_notified_at).toLocaleString(),
+                  date: formatDateTime(order.decision_notified_at),
                 })}
               </p>
             )}
@@ -968,7 +968,7 @@ function OrderDetailPage() {
             {order.delivery_notified_at && (
               <p className="text-xs text-muted-foreground">
                 {t("orders.deliveryNotifiedAt", {
-                  date: new Date(order.delivery_notified_at).toLocaleString(),
+                  date: formatDateTime(order.delivery_notified_at),
                 })}
               </p>
             )}
@@ -1037,7 +1037,7 @@ function OrderDetailPage() {
 
       <PageHeader
         title={order.order_number}
-        subtitle={t("orders.createdAt", { date: new Date(order.created_at).toLocaleString() })}
+        subtitle={t("orders.createdAt", { date: formatDateTime(order.created_at) })}
       >
         <StageBadge stage={order.stage} t={t} />
       </PageHeader>
@@ -1094,7 +1094,7 @@ function OrderDetailPage() {
 
       {/* ── Main grid ── */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
           {/* Client & equipment summary */}
           <Card>
             <CardHeader>
@@ -1356,12 +1356,12 @@ function OrderDetailPage() {
                     <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       {repair?.started_at && (
                         <span>
-                          {t("orders.started")}: {new Date(repair.started_at).toLocaleString()}
+                          {t("orders.started")}: {formatDateTime(repair.started_at)}
                         </span>
                       )}
                       {repair?.finished_at && (
                         <span>
-                          {t("orders.finished")}: {new Date(repair.finished_at).toLocaleString()}
+                          {t("orders.finished")}: {formatDateTime(repair.finished_at)}
                         </span>
                       )}
                     </div>
@@ -1464,7 +1464,7 @@ function OrderDetailPage() {
                             {p.reference ? ` · ${p.reference}` : ""}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(p.paid_at).toLocaleDateString()}
+                            {formatDate(p.paid_at)}
                           </span>
                         </li>
                       ))}
@@ -1646,7 +1646,7 @@ function OrderDetailPage() {
                     <li key={a.id} className="border-l-2 border-border pl-3 text-sm">
                       <p className="font-medium leading-snug">{auditLabel(a)}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {new Date(a.change_ts).toLocaleString()}
+                        {formatDateTime(a.change_ts)}
                         {a.app_user && ` · ${nameById.get(a.app_user) ?? t("common.noData")}`}
                       </p>
                     </li>

@@ -13,6 +13,7 @@ import {
 } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canRead } from "@/lib/access";
+import { formatAmount, formatDateTime } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,7 @@ function ReportsPage() {
   });
 
   const nameById = new Map(profiles.map((p) => [p.id, p.full_name]));
-  const generatedLine = t("reports.generated", { date: new Date().toLocaleString() });
+  const generatedLine = t("reports.generated", { date: formatDateTime(new Date()) });
 
   const inRange = (date: string) => {
     if (fromDate && new Date(date) < new Date(fromDate)) return false;
@@ -287,7 +288,7 @@ function ReportsPage() {
                   t("reports.byMonth"),
                   generatedLine,
                   [t("common.month"), t("reports.orders"), t("reports.revenue")],
-                  monthRows.map((r) => [r.month, r.count, r.revenue.toFixed(2)]),
+                  monthRows.map((r) => [r.month, r.count, formatAmount(r.revenue)]),
                 )
               }
             >
@@ -312,7 +313,7 @@ function ReportsPage() {
                     <TableRow key={r.month}>
                       <TableCell>{r.month}</TableCell>
                       <TableCell className="text-right font-medium">{r.count}</TableCell>
-                      <TableCell className="text-right">{r.revenue.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{formatAmount(r.revenue)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -377,7 +378,7 @@ function ReportsPage() {
                   t("reports.partsConsumption"),
                   generatedLine,
                   [t("inventory.description"), t("reports.quantity"), t("reports.cost")],
-                  partsConsumption.map((r) => [r.label, r.qty, r.cost.toFixed(2)]),
+                  partsConsumption.map((r) => [r.label, r.qty, formatAmount(r.cost)]),
                 )
               }
             >
@@ -402,7 +403,7 @@ function ReportsPage() {
                     <TableRow key={r.label}>
                       <TableCell>{r.label}</TableCell>
                       <TableCell className="text-right font-medium">{r.qty}</TableCell>
-                      <TableCell className="text-right">{r.cost.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{formatAmount(r.cost)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

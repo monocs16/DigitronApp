@@ -7,6 +7,7 @@ import { Plus, Pencil, ClipboardList, Search } from "lucide-react";
 import { equipmentRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
+import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -158,7 +159,7 @@ function EquipmentPage() {
                             <span className="flex items-center gap-3">
                               <StageBadge stage={o.stage as OrderStage} t={t} />
                               <span className="text-xs text-muted-foreground">
-                                {new Date(o.intake_at).toLocaleDateString()}
+                                {formatDate(o.intake_at)}
                               </span>
                             </span>
                           </li>

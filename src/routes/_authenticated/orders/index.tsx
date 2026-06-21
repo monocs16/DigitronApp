@@ -7,6 +7,7 @@ import { useTechnicians } from "@/hooks/use-technicians";
 import { PageHeader } from "@/components/page-header";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate } from "@/lib/access";
+import { formatDate } from "@/lib/utils";
 import { ordersRepository } from "@/lib/repositories";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -235,7 +236,7 @@ function OrdersPage() {
                     </TableCell>
                     <TableCell>{o.technician?.full_name ?? t("common.noData")}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(o.created_at).toLocaleDateString()}
+                      {formatDate(o.created_at)}
                     </TableCell>
                   </TableRow>
                 ))}

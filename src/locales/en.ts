@@ -377,6 +377,8 @@ export default {
     roleUpdated: "Role updated",
     deleted: "User deleted",
     deleteConfirm: "Delete {{name}}?",
+    deleteDescription: "This action cannot be undone.",
+    empty: "No users registered.",
   },
   settings: {
     title: "Settings",

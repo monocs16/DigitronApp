@@ -1,7 +1,6 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -34,20 +33,11 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Trash2 } from "lucide-react";
 import { APP_ROLES, getRoleLabel, type AppRole } from "@/lib/digitron";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/page-header";
+import { AsyncCardBody } from "@/components/async-card-body";
+import { DeleteConfirmButton } from "@/components/delete-confirm-button";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsersPage,
@@ -81,8 +71,6 @@ function UsersPage() {
     resolver: zodResolver(createSchema),
     defaultValues: { full_name: "", email: "", role: "tecnico", password: "" },
   });
-
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
   const createMut = useMutation({
     mutationFn: (input: CreateFields) => create({ data: input }),
@@ -213,9 +201,11 @@ function UsersPage() {
           <CardTitle className="text-base">{t("users.existing")}</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-          ) : (
+          <AsyncCardBody
+            isLoading={isLoading}
+            isEmpty={(users ?? []).length === 0}
+            emptyMessage={t("users.empty")}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -253,48 +243,19 @@ function UsersPage() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPendingDelete({ id: u.id, name: u.full_name })}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DeleteConfirmButton
+                        title={t("users.deleteConfirm", { name: u.full_name })}
+                        description={t("users.deleteDescription")}
+                        onConfirm={() => delMut.mutate(u.id)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
+          </AsyncCardBody>
         </CardContent>
       </Card>
-
-      <AlertDialog
-        open={pendingDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("users.deleteConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("users.deleteConfirm", { name: pendingDelete?.name })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingDelete) delMut.mutate(pendingDelete.id);
-                setPendingDelete(null);
-              }}
-            >
-              {t("common.delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

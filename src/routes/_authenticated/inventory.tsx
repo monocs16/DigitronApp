@@ -7,6 +7,7 @@ import { Plus, Pencil } from "lucide-react";
 import { partsRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
+import { formatAmount } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,7 +119,7 @@ function InventoryPage() {
                     <TableCell className="text-muted-foreground">
                       {p.supplier ?? t("common.noData")}
                     </TableCell>
-                    <TableCell className="text-right">{p.unit_cost.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{formatAmount(p.unit_cost)}</TableCell>
                     <TableCell className="text-right">
                       <span className="inline-flex items-center gap-2">
                         {stockBadge(p.stock)}

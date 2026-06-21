@@ -174,3 +174,75 @@ _This is the first review. The following describes the current state as of `0f45
 | Low | **F-02** Begin phasing `$orderId.tsx` into sub-components (long-term; ship behind a feature branch) | dev | XL |
 
 ---
+
+## Review #2 — 2026-06-21 @ `838c070`
+
+Focused follow-up review on **code duplication and reuse** (requested after Review #1 fixes were applied).
+
+### Summary
+
+Audited custom components, hooks, repositories, and routes for duplicated logic and missed reuse of existing helpers/components. Found and fixed three concrete duplication clusters. One larger structural duplication (entity form dialogs) is documented as a recommendation rather than refactored, pending review.
+
+### Findings
+
+| ID | Location | Severity | SOLID | Finding | Status |
+|---|---|---|---|---|---|
+| D-01 | [`src/routes/_authenticated/usuarios.tsx`](src/routes/_authenticated/usuarios.tsx) | **High** | DRY | The delete confirmation introduced in F-07 hand-rolled an `AlertDialog` (with `pendingDelete` state) instead of reusing the existing `DeleteConfirmButton` component used by `clients.tsx`, `inventory.tsx`, `equipment.tsx`. It also referenced a non-existent key `users.deleteConfirmTitle` (rendered raw). Loading state used an inline `<p>` instead of `AsyncCardBody`. | ✅ Fixed — now uses `DeleteConfirmButton` + `AsyncCardBody`; added `users.deleteDescription` / `users.empty` keys (en+es). |
+| D-02 | [`inventory.tsx`](src/routes/_authenticated/inventory.tsx), [`reports.tsx`](src/routes/_authenticated/reports.tsx) | **Medium** | DRY | Raw `.toFixed(2)` money formatting in 4 places, despite `formatAmount` (added in F-13) existing for exactly this. | ✅ Fixed — all routed through `formatAmount`. |
+| D-03 | Multiple routes (`$orderId.tsx` ×7, `equipment.tsx`, `orders/index.tsx`, `reports.tsx`) | **Medium** | DRY | `new Date(x).toLocaleDateString()` / `.toLocaleString()` repeated ~11 times for display. | ✅ Fixed — added `formatDate` / `formatDateTime` to `utils.ts`; replaced all display call sites. Date-comparison/filter and ISO-stamp usages intentionally left untouched. |
+| D-04 | [`client-form-dialog.tsx`](src/components/client-form-dialog.tsx), [`equipment-form-dialog.tsx`](src/components/equipment-form-dialog.tsx), [`parts-form-dialog.tsx`](src/components/parts-form-dialog.tsx) | **Medium** | DRY | The three entity form dialogs share an identical skeleton: `useForm` + `zodResolver` + `EMPTY` defaults + reset-on-open `useEffect` + create-or-update `upsert` mutation (toast + invalidate + close + `onSuccess`) + Dialog/Form/Footer chrome. Only schema, fields, repository, query keys, and messages differ. | ⏸️ Documented, not refactored — generic form abstraction is high-risk/debatable; recommend a `useUpsertMutation` helper + shared dialog shell behind review. |
+
+### Patterns Observed
+
+- **Resolved since last review** — F-01 through F-09, F-11, F-13 confirmed applied in the codebase.
+- **Recurring** — Reusable presentational components (`DeleteConfirmButton`, `AsyncCardBody`) exist and are used by 3 of 4 list pages; new code should default to them rather than re-implementing.
+- **New** — `formatAmount` / `formatDate` / `formatDateTime` are now the canonical formatting helpers in `src/lib/utils.ts`; prefer them over inline `.toFixed`/`.toLocale*`.
+
+### Architecture Changes Since Last Review
+
+- [x] `usuarios.tsx` brought in line with sibling list-page conventions (shared delete + async-body components).
+- [x] Money and date formatting centralized in `src/lib/utils.ts`.
+- [ ] **D-04 outstanding**: entity form dialogs still duplicate the upsert/dialog skeleton.
+
+### Action Items
+
+| Priority | Task | Owner | Effort |
+|---|---|---|---|
+| Medium | **D-04** Extract a shared `useUpsertMutation` helper (and optionally a form-dialog shell) for the client/equipment/parts dialogs | dev | M |
+
+---
+
+## Review #3 — 2026-06-21 @ `9ad48e5` (mobile responsiveness)
+
+Focused review on **mobile responsiveness**, verified live in-browser at 375×812 (mobile) and 1280×800 (desktop) using the local Supabase stack with a seeded admin. Login, dashboard, clients, users, orders list, reports, the order-detail screen, and the entity form dialogs were all exercised.
+
+### Summary
+
+The app was already largely responsive (breakpoint-based grids that stack, a dedicated mobile stepper variant, an off-canvas sidebar drawer, dialogs that collapse to single column). Two real defects caused horizontal page overflow / cramped layout on mobile; both fixed. Root cause in both cases is the CSS default `min-width: auto` on flex/grid items, which lets wide descendants (tables, a non-shrinking `<Select>`) blow out the track and force the whole page wider than the viewport.
+
+### Findings
+
+| ID | Location | Severity | Finding | Status |
+|---|---|---|---|---|
+| R-01 | [`src/routes/_authenticated.tsx`](src/routes/_authenticated.tsx) | **High** | The layout content column (`flex flex-1 flex-col`) and `<main>` lacked `min-w-0`. On every page with a `<Table>`, the table's intrinsic width forced the whole content column — and all sibling content (forms, headers) — wider than the viewport, producing document-level horizontal scroll on mobile. | ✅ Fixed — added `min-w-0` to the content column and `<main>`. Tables now scroll internally within a 375px viewport; page no longer overflows. |
+| R-02 | [`src/components/page-header.tsx`](src/components/page-header.tsx) | **Medium** | `PageHeader` used `flex items-center justify-between` with no wrapping. With an action button child and a longer (e.g. Spanish) title, the title wrapped and the button crammed alongside it. | ✅ Fixed — header now `flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`; action drops below the title on mobile, single row on ≥sm. |
+| R-03 | [`src/routes/_authenticated/orders/$orderId.tsx`](src/routes/_authenticated/orders/$orderId.tsx) | **High** | Order-detail page overflowed on mobile: (a) the main grid's wide column (`lg:col-span-2`) lacked `min-w-0`, and (b) the PartsEditor add-part row's `<Select>` wrapper (`flex-1`) couldn't shrink, so the row's min-content blew out the card and grid column. | ✅ Fixed — `min-w-0` on the `lg:col-span-2` column and on the PartsEditor select wrapper. Verified 0 overflowing elements at 375px. |
+
+### Patterns Observed
+
+- **Recurring root cause** — `min-width: auto` on flex/grid items. The fix pattern is `min-w-0` on any flex/grid item (or column) that contains potentially-wide content (tables, selects with long options, long unbroken strings). New layout code should apply `min-w-0` proactively on such containers.
+- **Good existing patterns (keep)** — `order-stage-stepper.tsx` ships a dedicated mobile compact progress bar (`md:hidden`) vs. desktop horizontal stepper; list-filter bars use `md:grid-cols-N` that stack to one column; form dialogs use `sm:grid-cols-2` that collapse to single column; the sidebar uses the shadcn mobile Sheet drawer.
+
+### Architecture Changes Since Last Review
+
+- [x] Layout shell now constrains content width on mobile (`min-w-0`), so wide tables scroll internally instead of breaking the page.
+- [x] `PageHeader` is responsive (stacks title + action on mobile).
+- [x] Order-detail screen verified overflow-free on mobile.
+
+### Action Items
+
+| Priority | Task | Owner | Effort |
+|---|---|---|---|
+| Low | When adding new flex/grid layouts that hold tables, selects, or long text, apply `min-w-0` on the relevant item/column to prevent mobile overflow | dev | ongoing |
+
+---

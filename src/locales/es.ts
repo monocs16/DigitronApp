@@ -378,6 +378,8 @@ export default {
     roleUpdated: "Rol actualizado",
     deleted: "Usuario eliminado",
     deleteConfirm: "¿Eliminar a {{name}}?",
+    deleteDescription: "Esta acción no se puede deshacer.",
+    empty: "No hay usuarios registrados.",
   },
   settings: {
     title: "Configuración",

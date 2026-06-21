@@ -48,6 +48,9 @@ jobs:
 
       - name: Build Vercel output
         run: pnpm run build:vercel
+        env:
+          DEPLOY_TARGET: vercel
+          NITRO_PRESET: vercel
 
       - name: Deploy to Vercel
         id: deploy

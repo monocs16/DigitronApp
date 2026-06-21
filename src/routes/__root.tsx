@@ -16,7 +16,7 @@ import "@/lib/i18n";
 import i18n from "@/lib/i18n";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { authService } from "@/lib/auth.service";
 
 function NotFoundComponent() {
   const { t } = useTranslation();
@@ -112,7 +112,7 @@ function AuthSync() {
   const router = useRouter();
   const queryClient = useQueryClient();
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    const { data } = authService.onAuthStateChange((event) => {
       if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") return;
       router.invalidate();
       queryClient.invalidateQueries();
