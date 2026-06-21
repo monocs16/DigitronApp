@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Moon, Sun } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { profilesRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocale, type AppLocale } from "@/hooks/use-locale";
 import { useTheme, type Theme } from "@/hooks/use-theme";
@@ -31,11 +31,7 @@ function ConfiguracionPage() {
     mutationFn: async (name: string) => {
       const trimmed = name.trim();
       if (!trimmed) throw new Error(i18n.t("settings.nameEmpty"));
-      const { error } = await supabase
-        .from("profiles")
-        .update({ full_name: trimmed })
-        .eq("id", profile!.id);
-      if (error) throw new Error(error.message);
+      await profilesRepository.updateDisplayName(profile!.id, trimmed);
     },
     onSuccess: async () => {
       await refreshProfile();

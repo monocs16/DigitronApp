@@ -26,6 +26,7 @@ import {
 } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import i18n from "@/lib/i18n";
+import { formatAmount } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -199,12 +200,121 @@ function SectionPill({
 const MAX_PHOTOS = 5;
 const PAYMENT_METHODS = ["cash", "card", "transfer"] as const;
 
+type PartLine = {
+  id: string;
+  part_id: string;
+  quantity: number;
+  unit_cost_at_registration: number | null;
+  in_stock_at_registration: boolean;
+};
+
+type CatalogPart = {
+  id: string;
+  part_code: string;
+  description: string;
+  unit_cost: number;
+  stock: number;
+};
+
+function PartsEditor({
+  stage,
+  lines,
+  canEdit,
+  partId,
+  setPartId,
+  qty,
+  setQty,
+  catalog,
+  onAddPart,
+  isAddingPart,
+  t,
+}: {
+  stage: "quoted" | "used";
+  lines: PartLine[];
+  canEdit: boolean;
+  partId: string;
+  setPartId: (v: string) => void;
+  qty: string;
+  setQty: (v: string) => void;
+  catalog: CatalogPart[];
+  onAddPart: (args: { stage: "quoted" | "used"; partId: string; qty: number }) => void;
+  isAddingPart: boolean;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  const partLabel = (id: string) => {
+    const p = catalog.find((c) => c.id === id);
+    return p ? `${p.part_code} — ${p.description}` : t("common.noData");
+  };
+
+  return (
+    <div className="space-y-3">
+      <Label className="text-sm font-medium">
+        {stage === "quoted" ? t("orders.neededParts") : t("orders.usedParts")}
+      </Label>
+      {lines.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{t("orders.noParts")}</p>
+      ) : (
+        <ul className="divide-y rounded-md border text-sm">
+          {lines.map((l) => (
+            <li key={l.id} className="flex items-center justify-between px-3 py-2">
+              <span className="text-sm">
+                {partLabel(l.part_id)} ×{l.quantity}
+              </span>
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                {formatAmount(Number(l.unit_cost_at_registration) * l.quantity)}
+                {!l.in_stock_at_registration && (
+                  <Badge variant="outline" className="border-amber-500 text-amber-600">
+                    {t("orders.notInStock")}
+                  </Badge>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit && (
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <Select value={partId} onValueChange={setPartId}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("orders.selectPart")} />
+              </SelectTrigger>
+              <SelectContent>
+                {catalog.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.part_code} — {c.description} ({t("orders.stockShort", { count: c.stock })})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            className="w-20"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+          />
+          <Button
+            variant="outline"
+            disabled={isAddingPart || !partId}
+            onClick={() => onAddPart({ stage, partId, qty: Number(qty) })}
+          >
+            {t("orders.addPart")}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 function OrderDetailPage() {
   const { t } = useTranslation();
   const { orderId } = useParams({ from: "/_authenticated/orders/$orderId" });
-  const { profile, roles, loading: authLoading } = useAuth();
+  const { profile, roles, session, loading: authLoading, authReady } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const transition = useServerFn(transitionOrder);
@@ -220,9 +330,12 @@ function OrderDetailPage() {
 
   // ── Queries ──────────────────────────────────────────────────────────────
 
-  const { data: order, isLoading } = useQuery({
+  const { data: order, isPending: orderPending } = useQuery({
     queryKey: ["order", orderId],
     queryFn: () => ordersRepository.getById(orderId),
+    enabled: typeof window !== "undefined" && authReady && !!session,
+    refetchOnMount: "always",
+    retry: 2,
   });
 
   const { data: evaluation } = useQuery({
@@ -356,10 +469,6 @@ function OrderDetailPage() {
   // ── Derived values ───────────────────────────────────────────────────────
 
   const nameById = new Map(people.map((p) => [p.id, p.full_name]));
-  const partLabel = (id: string) => {
-    const p = catalog.find((c) => c.id === id);
-    return p ? `${p.part_code} — ${p.description}` : t("common.noData");
-  };
   const quotedParts = orderParts.filter((p) => p.stage === "quoted");
   const usedParts = orderParts.filter((p) => p.stage === "used");
   const quotedPartsTotal = quotedParts.reduce(
@@ -378,7 +487,6 @@ function OrderDetailPage() {
   const paidTotal = payments.reduce((s, p) => s + Number(p.amount), 0) + (budget?.advances ?? 0);
   const balance = budgetTotal - paidTotal;
   const balanceSettled = !!order?.balance_waived || balance <= 0;
-  const budgetApproved = budget?.decision === "approved";
 
   // Role gates
   const canEditEvaluation = isSuper || (isTecnico && isAssigned);
@@ -395,7 +503,7 @@ function OrderDetailPage() {
     for (const k of keys) qc.invalidateQueries({ queryKey: [k, orderId] });
   };
 
-  const money = (n: number) => n.toFixed(2);
+  const money = formatAmount;
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
@@ -626,7 +734,7 @@ function OrderDetailPage() {
 
   // ── Loading / not found ───────────────────────────────────────────────────
 
-  if (isLoading || authLoading) return <OrderDetailSkeleton />;
+  if (authLoading || orderPending) return <OrderDetailSkeleton />;
   if (!order) return <p className="text-sm text-muted-foreground">{t("orders.notFound")}</p>;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -676,80 +784,6 @@ function OrderDetailPage() {
     <p className="text-sm text-muted-foreground">
       {t("orders.waitingFor", { role: getRoleLabel(role, t) })}
     </p>
-  );
-
-  // ── Parts editor (inline helper) ─────────────────────────────────────────
-
-  const partsEditor = (opts: {
-    stage: "quoted" | "used";
-    lines: typeof orderParts;
-    canEdit: boolean;
-    partId: string;
-    setPartId: (v: string) => void;
-    qty: string;
-    setQty: (v: string) => void;
-  }) => (
-    <div className="space-y-3">
-      <Label className="text-sm font-medium">
-        {opts.stage === "quoted" ? t("orders.neededParts") : t("orders.usedParts")}
-      </Label>
-      {opts.lines.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t("orders.noParts")}</p>
-      ) : (
-        <ul className="divide-y rounded-md border text-sm">
-          {opts.lines.map((l) => (
-            <li key={l.id} className="flex items-center justify-between px-3 py-2">
-              <span className="text-sm">
-                {partLabel(l.part_id)} ×{l.quantity}
-              </span>
-              <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                {money(Number(l.unit_cost_at_registration) * l.quantity)}
-                {!l.in_stock_at_registration && (
-                  <Badge variant="outline" className="border-amber-500 text-amber-600">
-                    {t("orders.notInStock")}
-                  </Badge>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {opts.canEdit && (
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <Select value={opts.partId} onValueChange={opts.setPartId}>
-              <SelectTrigger>
-                <SelectValue placeholder={t("orders.selectPart")} />
-              </SelectTrigger>
-              <SelectContent>
-                {catalog.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.part_code} — {c.description} ({t("orders.stockShort", { count: c.stock })})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Input
-            type="number"
-            min="1"
-            step="1"
-            className="w-20"
-            value={opts.qty}
-            onChange={(e) => opts.setQty(e.target.value)}
-          />
-          <Button
-            variant="outline"
-            disabled={addPart.isPending || !opts.partId}
-            onClick={() =>
-              addPart.mutate({ stage: opts.stage, partId: opts.partId, qty: Number(opts.qty) })
-            }
-          >
-            {t("orders.addPart")}
-          </Button>
-        </div>
-      )}
-    </div>
   );
 
   // ── Current step action content ───────────────────────────────────────────
@@ -1163,15 +1197,19 @@ function OrderDetailPage() {
               {evalStatus !== "future" && (
                 <>
                   <Separator />
-                  {partsEditor({
-                    stage: "quoted",
-                    lines: quotedParts,
-                    canEdit: canEditEvaluation && evalStatus === "active",
-                    partId: evalPartId,
-                    setPartId: setEvalPartId,
-                    qty: evalPartQty,
-                    setQty: setEvalPartQty,
-                  })}
+                  <PartsEditor
+                    stage="quoted"
+                    lines={quotedParts}
+                    canEdit={canEditEvaluation && evalStatus === "active"}
+                    partId={evalPartId}
+                    setPartId={setEvalPartId}
+                    qty={evalPartQty}
+                    setQty={setEvalPartQty}
+                    catalog={catalog}
+                    onAddPart={(args) => addPart.mutate(args)}
+                    isAddingPart={addPart.isPending}
+                    t={t}
+                  />
                 </>
               )}
             </CardContent>
@@ -1366,15 +1404,19 @@ function OrderDetailPage() {
               {repairStatus !== "future" && (
                 <>
                   <Separator />
-                  {partsEditor({
-                    stage: "used",
-                    lines: usedParts,
-                    canEdit: canEditRepair && repairStatus === "active",
-                    partId: repairPartId,
-                    setPartId: setRepairPartId,
-                    qty: repairPartQty,
-                    setQty: setRepairPartQty,
-                  })}
+                  <PartsEditor
+                    stage="used"
+                    lines={usedParts}
+                    canEdit={canEditRepair && repairStatus === "active"}
+                    partId={repairPartId}
+                    setPartId={setRepairPartId}
+                    qty={repairPartQty}
+                    setQty={setRepairPartQty}
+                    catalog={catalog}
+                    onAddPart={(args) => addPart.mutate(args)}
+                    isAddingPart={addPart.isPending}
+                    t={t}
+                  />
                 </>
               )}
             </CardContent>

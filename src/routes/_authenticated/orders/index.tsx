@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { PlusCircle, Search } from "lucide-react";
 import { useTechnicians } from "@/hooks/use-technicians";
 import { PageHeader } from "@/components/page-header";
+import { useAuth } from "@/hooks/use-auth";
+import { canCreate } from "@/lib/access";
 import { ordersRepository } from "@/lib/repositories";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +55,7 @@ type OrderRow = {
 
 function OrdersPage() {
   const { t } = useTranslation();
+  const { roles, session, authReady } = useAuth();
   const { clientId, equipmentId } = Route.useSearch();
   const navigate = useNavigate();
   const [stage, setStage] = useState<string>("all");
@@ -64,9 +67,11 @@ function OrdersPage() {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: () => ordersRepository.getAll() as Promise<OrderRow[]>,
+    enabled: typeof window !== "undefined" && authReady && !!session,
   });
 
   const { data: techs = [] } = useTechnicians();
+  const canNewOrder = canCreate(roles, "os_apertura");
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -91,12 +96,14 @@ function OrdersPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("orders.title")} subtitle={t("orders.subtitle")}>
-        <Button asChild>
-          <Link to="/orders/new">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            {t("orders.newOrder")}
-          </Link>
-        </Button>
+        {canNewOrder ? (
+          <Button asChild>
+            <Link to="/orders/new">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              {t("orders.newOrder")}
+            </Link>
+          </Button>
+        ) : null}
       </PageHeader>
 
       {(clientId || equipmentId) && (

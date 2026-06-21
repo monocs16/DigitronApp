@@ -26,4 +26,12 @@ export const profilesRepository = {
     if (error) throw error;
     return data;
   },
+
+  updateDisplayName: async (userId: string, fullName: string) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName })
+      .eq("id", userId);
+    if (error) throw error;
+  },
 };

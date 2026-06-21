@@ -57,8 +57,12 @@ describe("canTransition — valid progressions", () => {
     expect(canTransition("intake", "evaluation", adminCtx())).toBe(true);
   });
 
-  it("evaluation → budget (admin)", () => {
-    expect(canTransition("evaluation", "budget", adminCtx())).toBe(true);
+  it("evaluation → budget (technician)", () => {
+    expect(canTransition("evaluation", "budget", techCtx())).toBe(true);
+  });
+
+  it("evaluation → budget is rejected for admin", () => {
+    expect(canTransition("evaluation", "budget", adminCtx())).toBe(false);
   });
 
   it("budget → customer_decision (admin)", () => {
@@ -83,8 +87,12 @@ describe("canTransition — valid progressions", () => {
     expect(canTransition("on_hold", "customer_decision", adminCtx())).toBe(true);
   });
 
-  it("repair → payment (admin)", () => {
-    expect(canTransition("repair", "payment", adminCtx())).toBe(true);
+  it("repair → payment (technician)", () => {
+    expect(canTransition("repair", "payment", techCtx())).toBe(true);
+  });
+
+  it("repair → payment is rejected for admin", () => {
+    expect(canTransition("repair", "payment", adminCtx())).toBe(false);
   });
 
   it("payment → delivered when balance settled (admin)", () => {

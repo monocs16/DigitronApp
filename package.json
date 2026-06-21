@@ -12,6 +12,7 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "CF_WORKERS=0 vite dev",
     "dev:local": "bash scripts/dev-local.sh",
     "dev:local:fresh": "bash scripts/dev-local.sh --fresh",
@@ -28,6 +29,8 @@
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui --ui-host=127.0.0.1 --ui-port=9323",
+    "ci:check": "pnpm run typecheck && pnpm run lint && pnpm audit --audit-level moderate && pnpm run test:coverage",
     "test": "pnpm run test:unit && pnpm run test:e2e",
     "lint": "eslint .",
     "format": "prettier --write ."
@@ -95,7 +98,6 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@playwright/test": "^1.61.0",
-    "@rollup/rollup-darwin-x64": "^4.62.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.16.5",

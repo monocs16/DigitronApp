@@ -1,0 +1,33 @@
+#!/bin/sh
+# Pre-push gate: mirrors .github/workflows/ci.yml so lint/typecheck/test failures
+# are caught before the remote run. Bypass with: git push --no-verify
+#
+# E2E needs Docker + Supabase CLI. Set SKIP_E2E_HOOK=1 to skip the E2E step only.
+
+set -e
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "✖ pnpm not found on PATH; cannot run CI checks. Install pnpm or push with --no-verify." >&2
+  exit 1
+fi
+
+echo "▶ CI quality gate (typecheck, lint, audit, unit tests)…"
+pnpm run ci:check
+
+if [ "$SKIP_E2E_HOOK" = "1" ]; then
+  echo "⏭ Skipping E2E (SKIP_E2E_HOOK=1)."
+  exit 0
+fi
+
+if ! command -v supabase >/dev/null 2>&1; then
+  echo "⏭ Skipping E2E: Supabase CLI not found. CI will still run E2E on the remote."
+  exit 0
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  echo "⏭ Skipping E2E: Docker is not running. Start Docker to run E2E locally, or CI will run it remotely."
+  exit 0
+fi
+
+echo "▶ CI E2E (Playwright + local Supabase)…"
+pnpm test:e2e

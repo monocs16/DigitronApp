@@ -68,43 +68,9 @@ export const transitionOrder = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const { data: roleRows } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    const roles = (roleRows ?? []).map((r) => r.role as AppRole);
+    const { stage, ctx } = await loadOrderContext(supabase, userId, data.order_id);
 
-    const { data: order, error: orderErr } = await supabase
-      .from("orders")
-      .select("id, stage, technician_id, balance_waived")
-      .eq("id", data.order_id)
-      .single();
-    if (orderErr || !order) throw new Error("Order not found.");
-
-    const { data: budget } = await supabase
-      .from("budgets")
-      .select("decision, labor_cost, parts_cost, freight_cost, other_charges, advances")
-      .eq("order_id", data.order_id)
-      .maybeSingle();
-    const { data: pays } = await supabase
-      .from("payments")
-      .select("amount")
-      .eq("order_id", data.order_id);
-
-    const budgetTotal = budget
-      ? budget.labor_cost + budget.parts_cost + budget.freight_cost + budget.other_charges
-      : 0;
-    const paidTotal =
-      (pays ?? []).reduce((s, p) => s + Number(p.amount), 0) + (budget?.advances ?? 0);
-
-    const ctx: TransitionContext = {
-      roles,
-      isAssignedTechnician: order.technician_id === userId,
-      budgetApproved: budget?.decision === "approved",
-      balanceSettled: order.balance_waived || budgetTotal - paidTotal <= 0,
-    };
-
-    if (!canTransition(order.stage, data.target_stage, ctx)) {
+    if (!canTransition(stage, data.target_stage, ctx)) {
       throw new Error("Transition not allowed.");
     }
 

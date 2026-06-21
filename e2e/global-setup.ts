@@ -1,47 +1,120 @@
-import { chromium, type FullConfig } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const BASE_URL = "http://localhost:5173";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? "admin@digitron.test";
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "digitron123";
+export const STATUS_FILE = join(__dirname, ".supabase-status.json");
 
-const TECH_EMAIL = process.env.E2E_TECH_EMAIL ?? "tech@digitron.test";
-const TECH_PASSWORD = process.env.E2E_TECH_PASSWORD ?? "digitron123";
+/** Must match `.env.e2e` and `supabase/config.toml` [api].port offset. */
+const EXPECTED_API_URL = "http://127.0.0.1:55321";
+const EXPECTED_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 
-async function loginAndSave(email: string, password: string, stateFile: string): Promise<void> {
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-
-  await page.goto(`${BASE_URL}/login`);
-  await page.waitForSelector("#email", { timeout: 10_000 });
-
-  await page.fill("#email", email);
-  await page.fill("#password", password);
-  await page.click('button[type="submit"]');
-
-  // Wait until redirected away from login (dashboard or orders)
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
-
-  await page.context().storageState({ path: stateFile });
-  await browser.close();
+function sh(cmd: string, args: string[]): string {
+  return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
-export default async function globalSetup(_config: FullConfig): Promise<void> {
-  await loginAndSave(ADMIN_EMAIL, ADMIN_PASSWORD, "e2e/fixtures/admin-state.json");
-
-  // Technician auth is best-effort: skip if no separate tech account is configured.
+function dockerRunning(): boolean {
   try {
-    await loginAndSave(TECH_EMAIL, TECH_PASSWORD, "e2e/fixtures/technician-state.json");
+    sh("docker", ["info"]);
+    return true;
   } catch {
-    // Seed a fallback empty state so Playwright doesn't error on missing file.
-    const { writeFileSync } = await import("node:fs");
+    return false;
+  }
+}
+
+function supabaseStatusJson(): Record<string, string> | null {
+  try {
+    const out = sh("supabase", ["status", "-o", "json"]);
+    return JSON.parse(out) as Record<string, string>;
+  } catch {
+    return null;
+  }
+}
+
+function seedAdmin(apiUrl: string, serviceRoleKey: string): void {
+  execFileSync("node", ["scripts/seed-admin.mjs"], {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      API_URL: apiUrl,
+      SERVICE_ROLE_KEY: serviceRoleKey,
+    },
+  });
+}
+
+export default async function globalSetup(): Promise<void> {
+  if (process.env.SKIP_E2E_SETUP === "1") {
+    console.log("[e2e] SKIP_E2E_SETUP=1 — skipping Supabase bootstrap.");
+    const status = supabaseStatusJson();
+    if (!status) {
+      throw new Error(
+        "[e2e] SKIP_E2E_SETUP=1 but local Supabase is not running. Run: pnpm run supabase:start",
+      );
+    }
+    const apiUrl = status.API_URL ?? status.api_url;
+    const serviceRoleKey = status.SERVICE_ROLE_KEY ?? status.service_role_key;
+    const anonKey = status.ANON_KEY ?? status.anon_key;
+    if (!apiUrl || !serviceRoleKey) {
+      throw new Error("[e2e] Could not read API_URL / SERVICE_ROLE_KEY from `supabase status`.");
+    }
     writeFileSync(
-      "e2e/fixtures/technician-state.json",
-      JSON.stringify({ cookies: [], origins: [] }),
+      STATUS_FILE,
+      JSON.stringify({ apiUrl, serviceRoleKey, anonKey: anonKey ?? EXPECTED_ANON_KEY }, null, 2),
     );
-    console.warn(
-      `[global-setup] Technician login failed for ${TECH_EMAIL}. ` +
-        "Technician E2E tests will be skipped or will redirect to login.",
+    return;
+  }
+
+  if (!dockerRunning()) {
+    throw new Error(
+      "[e2e] Docker is not running. Start Docker Desktop, then re-run `pnpm test:e2e`.",
     );
   }
+
+  let status = supabaseStatusJson();
+  if (!status) {
+    console.log("[e2e] Starting local Supabase…");
+    sh("supabase", ["start"]);
+  }
+
+  console.log("[e2e] Resetting local database (re-applying migrations)…");
+  sh("supabase", ["db", "reset"]);
+
+  status = supabaseStatusJson();
+  if (!status) {
+    throw new Error("[e2e] `supabase status` returned no data after start.");
+  }
+
+  const apiUrl = status.API_URL ?? status.api_url;
+  const serviceRoleKey = status.SERVICE_ROLE_KEY ?? status.service_role_key;
+  const anonKey = status.ANON_KEY ?? status.anon_key;
+
+  if (!apiUrl || !serviceRoleKey) {
+    throw new Error("[e2e] Could not read API_URL / SERVICE_ROLE_KEY from `supabase status`.");
+  }
+
+  if (apiUrl !== EXPECTED_API_URL) {
+    throw new Error(
+      `[e2e] Local API URL is ${apiUrl}, expected ${EXPECTED_API_URL}. ` +
+        "Update `.env.e2e` and EXPECTED_API_URL in e2e/global-setup.ts to match supabase/config.toml.",
+    );
+  }
+
+  if (anonKey && anonKey !== EXPECTED_ANON_KEY) {
+    throw new Error(
+      "[e2e] Local anon key from `supabase status` does not match `.env.e2e`. " +
+        "Update VITE_SUPABASE_PUBLISHABLE_KEY and EXPECTED_ANON_KEY in e2e/global-setup.ts.",
+    );
+  }
+
+  console.log("[e2e] Seeding admin + technician test users…");
+  seedAdmin(apiUrl, serviceRoleKey);
+
+  writeFileSync(
+    STATUS_FILE,
+    JSON.stringify({ apiUrl, serviceRoleKey, anonKey: anonKey ?? EXPECTED_ANON_KEY }, null, 2),
+  );
+  console.log(`[e2e] Local Supabase ready at ${apiUrl}.`);
 }

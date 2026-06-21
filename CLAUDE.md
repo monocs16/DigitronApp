@@ -33,6 +33,7 @@ For detailed standards and guidelines specific to different areas of the project
 - [Frontend Standards](./docs/frontend-standards.md) - React components, UI/UX guidelines, and frontend architecture
 - [Documentation Standards](./docs/documentation-standards.md) - Technical documentation structure, formatting, and maintenance guidelines, including AI standards like this document
 - [OpenSpec Tasks Mandatory Steps](./docs/openspec-tasks-mandatory-steps.md) - Required checklist and execution rules when creating or updating OpenSpec `tasks.md` files
+- [Code Review Log](./docs/code-review-log.md) - Living journal of code reviews: per-review entries anchored to commit SHAs, SOLID compliance matrix, architecture baseline, and action items. Append a new entry here after every `/code-review` or `/code-auditing` run.
 
 ## 4. Project Skills
 

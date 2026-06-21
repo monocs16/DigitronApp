@@ -42,9 +42,13 @@ export function OrderStageStepper({ stage, t }: OrderStageStepperProps) {
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all",
                     done && "bg-emerald-600 text-white dark:bg-emerald-500",
-                    current && !holdHere && "bg-primary text-primary-foreground ring-4 ring-primary/20",
+                    current &&
+                      !holdHere &&
+                      "bg-primary text-primary-foreground ring-4 ring-primary/20",
                     holdHere && "bg-amber-500 text-white ring-4 ring-amber-400/25",
-                    !done && !current && "border-2 border-border bg-background text-muted-foreground",
+                    !done &&
+                      !current &&
+                      "border-2 border-border bg-background text-muted-foreground",
                   )}
                 >
                   {done ? <Check className="h-3.5 w-3.5 stroke-[2.5]" /> : i + 1}

@@ -189,9 +189,6 @@ importers:
       '@playwright/test':
         specifier: ^1.61.0
         version: 1.61.0
-      '@rollup/rollup-darwin-x64':
-        specifier: ^4.62.0
-        version: 4.62.2
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -5019,7 +5016,8 @@ snapshots:
   '@rollup/rollup-darwin-arm64@4.62.2':
     optional: true
 
-  '@rollup/rollup-darwin-x64@4.62.2': {}
+  '@rollup/rollup-darwin-x64@4.62.2':
+    optional: true
 
   '@rollup/rollup-freebsd-arm64@4.62.2':
     optional: true

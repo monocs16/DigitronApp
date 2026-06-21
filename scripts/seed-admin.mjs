@@ -4,13 +4,17 @@
  * (intended for the LOCAL stack). Safe to run repeatedly.
  *
  * Required env: API_URL, SERVICE_ROLE_KEY
- * Optional env: ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME
+ * Optional env: ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME,
+ *               TECH_EMAIL, TECH_PASSWORD, TECH_NAME
  */
 const API_URL = process.env.API_URL;
 const SERVICE_ROLE_KEY = process.env.SERVICE_ROLE_KEY;
 const email = process.env.ADMIN_EMAIL || "admin@digitron.test";
 const password = process.env.ADMIN_PASSWORD || "digitron123";
 const full_name = process.env.ADMIN_NAME || "Admin Digitron";
+const techEmail = process.env.TECH_EMAIL || "tech@digitron.test";
+const techPassword = process.env.TECH_PASSWORD || "digitron123";
+const techName = process.env.TECH_NAME || "Technician Digitron";
 
 if (!API_URL || !SERVICE_ROLE_KEY) {
   console.error("seed-admin: API_URL and SERVICE_ROLE_KEY are required.");
@@ -23,12 +27,16 @@ const headers = {
   "Content-Type": "application/json",
 };
 
-async function main() {
-  // 1. Create the auth user (auto-confirmed). Ignore "already exists".
+async function ensureUser({ userEmail, userPassword, userName, role }) {
   const created = await fetch(`${API_URL}/auth/v1/admin/users`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { full_name } }),
+    body: JSON.stringify({
+      email: userEmail,
+      password: userPassword,
+      email_confirm: true,
+      user_metadata: { full_name: userName },
+    }),
   });
   if (created.status !== 200 && created.status !== 201) {
     const body = await created.json().catch(() => ({}));
@@ -39,24 +47,32 @@ async function main() {
     }
   }
 
-  // 2. Resolve the user id (profile is created by the signup trigger).
   const pr = await fetch(
-    `${API_URL}/rest/v1/profiles?select=id&email=eq.${encodeURIComponent(email)}`,
+    `${API_URL}/rest/v1/profiles?select=id&email=eq.${encodeURIComponent(userEmail)}`,
     { headers },
   );
   if (!pr.ok) throw new Error(`lookup profile failed (${pr.status}): ${await pr.text()}`);
   const [profile] = await pr.json();
-  if (!profile?.id) throw new Error("could not resolve admin user id");
+  if (!profile?.id) throw new Error(`could not resolve user id for ${userEmail}`);
 
-  // 3. Ensure the super role (idempotent on the (user_id, role) unique key).
   const rr = await fetch(`${API_URL}/rest/v1/user_roles?on_conflict=user_id,role`, {
     method: "POST",
     headers: { ...headers, Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify({ user_id: profile.id, role: "super" }),
+    body: JSON.stringify({ user_id: profile.id, role }),
   });
-  if (!rr.ok) throw new Error(`set super role failed (${rr.status}): ${await rr.text()}`);
+  if (!rr.ok) throw new Error(`set ${role} role failed (${rr.status}): ${await rr.text()}`);
 
-  console.log(`✓ super admin ready → ${email} / ${password}`);
+  console.log(`✓ ${role} user ready → ${userEmail} / ${userPassword}`);
+}
+
+async function main() {
+  await ensureUser({ userEmail: email, userPassword: password, userName: full_name, role: "super" });
+  await ensureUser({
+    userEmail: techEmail,
+    userPassword: techPassword,
+    userName: techName,
+    role: "tecnico",
+  });
 }
 
 main().catch((e) => {

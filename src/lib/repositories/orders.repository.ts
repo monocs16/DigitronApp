@@ -42,7 +42,7 @@ export const ordersRepository = {
         `*, customers(id, name, phone1, email), equipment(id, type, brand, model, serial_number)`,
       )
       .eq("id", orderId)
-      .single();
+      .maybeSingle();
     if (error) throw error;
     return data;
   },

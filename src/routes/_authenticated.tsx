@@ -10,9 +10,9 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthLayout() {
   const { t } = useTranslation();
-  const { loading, session, profile } = useAuth();
+  const { loading, session, profile, authReady } = useAuth();
   const location = useLocation();
-  if (loading) {
+  if (loading || (session && !authReady)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         {t("common.loading")}

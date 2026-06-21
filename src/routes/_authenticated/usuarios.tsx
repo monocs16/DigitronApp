@@ -1,13 +1,15 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { listUsers, createUser, updateUserRole, deleteUser } from "@/lib/users.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -24,6 +26,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Trash2 } from "lucide-react";
 import { APP_ROLES, getRoleLabel, type AppRole } from "@/lib/digitron";
 import { useAuth } from "@/hooks/use-auth";
@@ -32,6 +52,15 @@ import { PageHeader } from "@/components/page-header";
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsersPage,
 });
+
+const createSchema = z.object({
+  full_name: z.string().min(1),
+  email: z.string().email(),
+  role: z.enum([...APP_ROLES] as [AppRole, ...AppRole[]]),
+  password: z.string().min(6),
+});
+
+type CreateFields = z.infer<typeof createSchema>;
 
 function UsersPage() {
   const { t } = useTranslation();
@@ -48,19 +77,19 @@ function UsersPage() {
     enabled: hasRole("super"),
   });
 
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-    full_name: "",
-    role: "tecnico" as AppRole,
+  const createForm = useForm<CreateFields>({
+    resolver: zodResolver(createSchema),
+    defaultValues: { full_name: "", email: "", role: "tecnico", password: "" },
   });
 
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+
   const createMut = useMutation({
-    mutationFn: (input: { email: string; password: string; full_name: string; role: AppRole }) =>
-      create({ data: input }),
+    mutationFn: (input: CreateFields) => create({ data: input }),
     onSuccess: () => {
       toast.success(t("users.created"));
       qc.invalidateQueries({ queryKey: ["users"] });
+      createForm.reset();
     },
     onError: (e: Error) => toast.error(t("common.error"), { description: e.message }),
   });
@@ -91,13 +120,6 @@ function UsersPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    createMut.mutate(form, {
-      onSuccess: () => setForm({ email: "", password: "", full_name: "", role: "tecnico" }),
-    });
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader title={t("users.title")} subtitle={t("users.subtitle")} />
@@ -108,61 +130,81 @@ function UsersPage() {
           <CardDescription>{t("users.passwordHint")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-5">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="name">{t("users.fullName")}</Label>
-              <Input
-                id="name"
-                required
-                value={form.full_name}
-                onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+          <Form {...createForm}>
+            <form
+              onSubmit={createForm.handleSubmit((data) => createMut.mutate(data))}
+              className="grid gap-4 md:grid-cols-5"
+            >
+              <FormField
+                control={createForm.control}
+                name="full_name"
+                render={({ field }) => (
+                  <FormItem className="space-y-2 md:col-span-2">
+                    <FormLabel>{t("users.fullName")}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="email">{t("users.email")}</Label>
-              <Input
-                id="email"
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              <FormField
+                control={createForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem className="space-y-2 md:col-span-2">
+                    <FormLabel>{t("users.email")}</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">{t("users.role")}</Label>
-              <Select
-                value={form.role}
-                onValueChange={(v) => setForm({ ...form, role: v as AppRole })}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {APP_ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {getRoleLabel(r, t)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="pwd">{t("users.tempPassword")}</Label>
-              <Input
-                id="pwd"
-                type="text"
-                required
-                minLength={6}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              <FormField
+                control={createForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>{t("users.role")}</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {APP_ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {getRoleLabel(r, t)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="flex items-end md:col-span-3">
-              <Button type="submit" disabled={createMut.isPending}>
-                {createMut.isPending ? t("users.creating") : t("users.createUser")}
-              </Button>
-            </div>
-          </form>
+              <FormField
+                control={createForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem className="space-y-2 md:col-span-2">
+                    <FormLabel>{t("users.tempPassword")}</FormLabel>
+                    <FormControl>
+                      <Input type="text" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex items-end md:col-span-3">
+                <Button type="submit" disabled={createMut.isPending}>
+                  {createMut.isPending ? t("users.creating") : t("users.createUser")}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </CardContent>
       </Card>
 
@@ -214,10 +256,7 @@ function UsersPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          if (confirm(t("users.deleteConfirm", { name: u.full_name })))
-                            delMut.mutate(u.id);
-                        }}
+                        onClick={() => setPendingDelete({ id: u.id, name: u.full_name })}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -229,6 +268,33 @@ function UsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("users.deleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("users.deleteConfirm", { name: pendingDelete?.name })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDelete) delMut.mutate(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
