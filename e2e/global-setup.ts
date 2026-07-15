@@ -35,6 +35,17 @@ function supabaseStatusJson(): Record<string, string> | null {
   }
 }
 
+async function waitForSupabaseStatus(): Promise<Record<string, string>> {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const status = supabaseStatusJson();
+    const apiUrl = status?.API_URL ?? status?.api_url;
+    const serviceRoleKey = status?.SERVICE_ROLE_KEY ?? status?.service_role_key;
+    if (status && apiUrl && serviceRoleKey) return status;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new Error("[e2e] Timed out waiting for local Supabase API credentials.");
+}
+
 function seedAdmin(apiUrl: string, serviceRoleKey: string): void {
   execFileSync("node", ["scripts/seed-admin.mjs"], {
     stdio: "inherit",
@@ -99,10 +110,7 @@ export default async function globalSetup(): Promise<void> {
   console.log("[e2e] Resetting local database (re-applying migrations)…");
   sh("supabase", ["db", "reset"]);
 
-  status = supabaseStatusJson();
-  if (!status) {
-    throw new Error("[e2e] `supabase status` returned no data after start.");
-  }
+  status = await waitForSupabaseStatus();
 
   const apiUrl = status.API_URL ?? status.api_url;
   const serviceRoleKey = status.SERVICE_ROLE_KEY ?? status.service_role_key;
