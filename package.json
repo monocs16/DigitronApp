@@ -18,6 +18,7 @@
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset && pnpm run seed:admin",
     "seed:admin": "bash -c 'eval \"$(supabase status -o env)\"; API_URL=\"$API_URL\" SERVICE_ROLE_KEY=\"$SERVICE_ROLE_KEY\" node scripts/seed-admin.mjs'",
+    "seed:demo": "bash -c 'eval \"$(supabase status -o env)\"; API_URL=\"$API_URL\" SERVICE_ROLE_KEY=\"$SERVICE_ROLE_KEY\" node scripts/seed-demo-data.mjs'",
     "build": "CF_WORKERS=1 vite build",
     "build:vercel": "DEPLOY_TARGET=vercel NITRO_PRESET=vercel vite build",
     "build:dev": "vite build --mode development",
