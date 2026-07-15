@@ -56,5 +56,7 @@ export async function gotoOrderDetail(page: Page, orderId: string): Promise<void
 export async function gotoNewOrderForm(page: Page): Promise<void> {
   await page.goto("/orders/new");
   await waitForAdminRoles(page);
-  await expect(page.getByRole("combobox").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByPlaceholder("Buscar por nombre o cédula")).toBeVisible({
+    timeout: 15_000,
+  });
 }

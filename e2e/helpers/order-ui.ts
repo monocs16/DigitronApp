@@ -1,19 +1,25 @@
 import type { Page } from "@playwright/test";
 import { labels } from "./labels";
-import { gotoNewOrderForm, selectComboboxOption } from "./page";
+import { expect } from "@playwright/test";
+import { gotoNewOrderForm } from "./page";
 import { seedTestCustomerEquipment } from "./seed";
 
-/** Seeds client/equipment via service role, then creates an intake order through the UI. */
+/** Seeds client/equipment via service role, then creates an order through the UI. */
 export async function createIntakeOrderFromSeed(page: Page): Promise<{
   orderId: string;
   clientId: string;
+  equipmentId: string;
   customerName: string;
 }> {
-  const { clientId, customerName } = await seedTestCustomerEquipment();
+  const { clientId, equipmentId, customerName, serialNumber } = await seedTestCustomerEquipment();
 
   await gotoNewOrderForm(page);
-  await selectComboboxOption(page, 0, customerName);
-  await selectComboboxOption(page, 1, /Laptop.*E2E.*Test/);
+  await page.getByPlaceholder("Buscar por nombre o cédula").fill(customerName);
+  await page.getByRole("button", { name: customerName, exact: true }).click();
+  await page.getByPlaceholder("Buscar por número de serie").fill(serialNumber);
+  const equipmentOption = page.getByRole("button").filter({ hasText: serialNumber });
+  await expect(equipmentOption).toBeVisible();
+  await equipmentOption.click();
   await page
     .getByRole("textbox", { name: labels.orders.problemReported })
     .fill("E2E test problem description");
@@ -23,5 +29,5 @@ export async function createIntakeOrderFromSeed(page: Page): Promise<{
   const orderId = page.url().split("/").pop();
   if (!orderId) throw new Error("Could not resolve order id from URL after create");
 
-  return { orderId, clientId, customerName };
+  return { orderId, clientId, equipmentId, customerName };
 }

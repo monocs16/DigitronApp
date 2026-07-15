@@ -51,11 +51,12 @@ function uniqueCustomerName(): string {
   return `E2E Client ${Date.now()}`;
 }
 
-/** Seeds a customer + equipment row via service role (bypasses RLS). */
+/** Seeds independent customer and equipment rows via service role (bypasses RLS). */
 export async function seedTestCustomerEquipment(): Promise<{
   clientId: string;
   equipmentId: string;
   customerName: string;
+  serialNumber: string;
 }> {
   const { apiUrl, serviceRoleKey } = loadE2eSupabaseEnv();
   if (!serviceRoleKey) {
@@ -71,14 +72,15 @@ export async function seedTestCustomerEquipment(): Promise<{
     phone1: "555-0001",
   });
 
+  const serialNumber = `E2E-${Date.now()}`;
   const equipment = await postRow<{ id: string }>(apiUrl, serviceRoleKey, "equipment", {
-    client_id: customer.id,
     type: "Laptop",
     brand: "E2E",
     model: "Test",
+    serial_number: serialNumber,
   });
 
-  return { clientId: customer.id, equipmentId: equipment.id, customerName };
+  return { clientId: customer.id, equipmentId: equipment.id, customerName, serialNumber };
 }
 
 export async function seedTestOrder(
@@ -97,10 +99,13 @@ export async function seedTestOrder(
   });
 }
 
-/** Deletes orders for the customer, then the customer (equipment cascades). */
-export async function deleteTestCustomer(clientId: string): Promise<void> {
+/** Deletes a test order's customer and optional independent equipment. */
+export async function deleteTestCustomer(clientId: string, equipmentId?: string): Promise<void> {
   const { apiUrl, serviceRoleKey } = loadE2eSupabaseEnv();
   await deleteWhere(apiUrl, serviceRoleKey, "orders", `client_id=eq.${clientId}`);
+  if (equipmentId) {
+    await deleteWhere(apiUrl, serviceRoleKey, "equipment", `id=eq.${equipmentId}`);
+  }
   await deleteWhere(apiUrl, serviceRoleKey, "customers", `id=eq.${clientId}`);
 }
 

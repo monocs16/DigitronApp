@@ -4,8 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
  * E2E tests run against a LOCAL Supabase stack (Docker) — never production.
  *
  * `e2e/global-setup.ts` starts/resets Supabase, applies migrations, seeds test users,
- * and writes `e2e/.supabase-status.json`. The app boots via `vite --mode e2e`, which
- * loads committed `.env.e2e` pointing at 127.0.0.1:55321.
+ * and writes `e2e/.supabase-status.json` plus ignored `.env.e2e.local` credentials.
+ * The app then boots via `vite --mode e2e` against the local stack.
  *
  * Local and CI use the same command: `pnpm test:e2e`
  */

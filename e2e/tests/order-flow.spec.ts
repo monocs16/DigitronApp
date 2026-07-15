@@ -34,11 +34,13 @@ test.describe("Admin — order flow", () => {
       test.skip(true, "SUPABASE_SERVICE_ROLE_KEY not set — skipping cleanup-dependent test");
     }
 
-    const { clientId } = await createIntakeOrderFromSeed(page);
+    const { clientId, equipmentId } = await createIntakeOrderFromSeed(page);
     try {
-      await expect(page.getByText(labels.stage.intake).first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(labels.stage.evaluation).first()).toBeVisible({
+        timeout: 15_000,
+      });
     } finally {
-      await deleteTestCustomer(clientId);
+      await deleteTestCustomer(clientId, equipmentId);
     }
   });
 });
@@ -60,7 +62,7 @@ test.describe("Admin — order detail stage actions", () => {
       });
       await expect(page.getByText(labels.stage.intake).first()).toBeVisible();
     } finally {
-      await deleteTestCustomer(clientId);
+      await deleteTestCustomer(clientId, equipmentId);
     }
   });
 
@@ -82,7 +84,7 @@ test.describe("Admin — order detail stage actions", () => {
         page.getByRole("button", { name: labels.orders.sendToEvaluation }),
       ).not.toBeVisible();
     } finally {
-      await deleteTestCustomer(clientId);
+      await deleteTestCustomer(clientId, equipmentId);
     }
   });
 
@@ -99,7 +101,7 @@ test.describe("Admin — order detail stage actions", () => {
       ).not.toBeVisible();
       await expect(page.getByRole("button", { name: labels.orders.closeOrder })).not.toBeVisible();
     } finally {
-      await deleteTestCustomer(clientId);
+      await deleteTestCustomer(clientId, equipmentId);
     }
   });
 });
