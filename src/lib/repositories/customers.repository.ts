@@ -11,7 +11,34 @@ export const customersRepository = {
   },
 
   getAllMin: async () => {
-    const { data, error } = await supabase.from("customers").select("id, name").order("name");
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, name, tax_id")
+      .order("name");
+    if (error) throw error;
+    return data;
+  },
+
+  search: async (term: string) => {
+    const value = term.trim();
+    if (value.length < 2) return [];
+    const pattern = `%${value.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, name, tax_id")
+      .or(`name.ilike.${pattern},tax_id.ilike.${pattern}`)
+      .order("name")
+      .limit(20);
+    if (error) throw error;
+    return data;
+  },
+
+  getById: async (id: string) => {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, name, tax_id")
+      .eq("id", id)
+      .single();
     if (error) throw error;
     return data;
   },

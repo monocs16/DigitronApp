@@ -15,6 +15,19 @@ export const STAGE_TRANSITIONS: Record<OrderStage, OrderStage[]> = {
   closed: [],
 };
 
+/** Direct, auditable corrections allowed when an order was advanced in error. */
+export const STAGE_PREVIOUS: Record<OrderStage, OrderStage[]> = {
+  intake: [],
+  evaluation: ["intake"],
+  budget: ["evaluation"],
+  customer_decision: ["budget", "on_hold"],
+  on_hold: ["customer_decision"],
+  repair: ["customer_decision"],
+  payment: ["repair"],
+  delivered: ["payment"],
+  closed: ["delivered"],
+};
+
 // Which roles may move an order INTO a given target stage. `super` is always allowed.
 export const STAGE_ACTOR_ROLES: Record<OrderStage, AppRole[]> = {
   intake: ["administrativo"],
@@ -72,4 +85,15 @@ export function canTransition(
   ctx: TransitionContext,
 ): boolean {
   return allowedNextStages(current, ctx).includes(target);
+}
+
+export function allowedPreviousStages(current: OrderStage, ctx: TransitionContext): OrderStage[] {
+  if (ctx.roles.includes("super") || ctx.roles.includes("administrativo")) {
+    return STAGE_PREVIOUS[current];
+  }
+  if (!ctx.roles.includes("tecnico") || !ctx.isAssignedTechnician) return [];
+  // A technician may correct the two stages they completed themselves.
+  if (current === "budget") return ["evaluation"];
+  if (current === "payment") return ["repair"];
+  return [];
 }

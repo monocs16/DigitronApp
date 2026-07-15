@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { STAGE_ORDER, type AppRole, type OrderStage } from "@/lib/digitron";
-import { canTransition, type TransitionContext } from "@/lib/state-machine";
+import { allowedPreviousStages, canTransition, type TransitionContext } from "@/lib/state-machine";
 
 const WARRANTY_ELIGIBLE_STAGES = ["delivered", "closed"];
 const ADMIN_ROLES: AppRole[] = ["administrativo", "super"];
@@ -80,6 +80,45 @@ export const transitionOrder = createServerFn({ method: "POST" })
       .eq("id", data.order_id);
     if (upErr) throw new Error(upErr.message);
 
+    return { ok: true as const };
+  });
+
+/** Moves one step back only when the actor has permission, and records why. */
+export const revertOrderStage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        order_id: z.string().uuid(),
+        target_stage: z.enum(STAGE_ORDER),
+        reason: z.string().trim().min(3).max(1000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { stage, ctx } = await loadOrderContext(supabase, userId, data.order_id);
+    if (!allowedPreviousStages(stage, ctx).includes(data.target_stage)) {
+      throw new Error("The requested correction is not allowed.");
+    }
+    const notes = supabase.from("order_notes" as never) as unknown as {
+      insert: (row: {
+        order_id: string;
+        created_by: string;
+        body: string;
+      }) => Promise<{ error: Error | null }>;
+    };
+    const { error: noteError } = await notes.insert({
+      order_id: data.order_id,
+      created_by: userId,
+      body: `Corrección de flujo: ${stage} → ${data.target_stage}. Motivo: ${data.reason}`,
+    });
+    if (noteError) throw new Error(noteError.message);
+    const { error } = await supabase
+      .from("orders")
+      .update({ stage: data.target_stage })
+      .eq("id", data.order_id);
+    if (error) throw new Error(error.message);
     return { ok: true as const };
   });
 

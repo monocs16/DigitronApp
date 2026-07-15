@@ -1,21 +1,21 @@
-import { useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTechnicians } from "@/hooks/use-technicians";
-import { useClientsMin } from "@/hooks/use-clients-min";
 import { PageHeader } from "@/components/page-header";
 import { EquipmentFormDialog } from "@/components/equipment-form-dialog";
 import { ClientFormDialog } from "@/components/client-form-dialog";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
-import { equipmentRepository, ordersRepository } from "@/lib/repositories";
+import { customersRepository, equipmentRepository, ordersRepository } from "@/lib/repositories";
+import { downloadServiceOrderPdf } from "@/lib/service-order-pdf";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -45,6 +45,8 @@ const newOrderSchema = z.object({
   problem: z.string().min(1, "Describe the problem"),
   technicianId: z.string(),
   source: z.enum(SOURCES),
+  accessories: z.string(),
+  advance: z.coerce.number().min(0),
 });
 
 type NewOrderValues = z.infer<typeof newOrderSchema>;
@@ -52,7 +54,6 @@ type NewOrderValues = z.infer<typeof newOrderSchema>;
 function NewOrderPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const qc = useQueryClient();
 
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [equipmentDialogOpen, setEquipmentDialogOpen] = useState(false);
@@ -65,22 +66,31 @@ function NewOrderPage() {
       problem: "",
       technicianId: "none",
       source: "counter",
+      accessories: "",
+      advance: 0,
     },
   });
 
-  const clientId = form.watch("clientId");
+  const [clientSearch, setClientSearch] = useState("");
+  const [selectedClient, setSelectedClient] = useState<{ id: string; name: string } | null>(null);
+  const { data: clientResults = [], isFetching: isSearchingClients } = useQuery({
+    queryKey: ["client-search", clientSearch],
+    queryFn: () => customersRepository.search(clientSearch),
+    enabled: clientSearch.trim().length >= 2,
+  });
 
-  // Reset equipment when client changes
-  useEffect(() => {
-    form.setValue("equipmentId", "");
-  }, [clientId, form]);
-
-  const { data: clients = [] } = useClientsMin();
-
-  const { data: equipment = [] } = useQuery({
-    queryKey: ["equipment-by-client", clientId],
-    enabled: !!clientId,
-    queryFn: () => equipmentRepository.getByClientId(clientId),
+  const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [selectedEquipment, setSelectedEquipment] = useState<{
+    id: string;
+    type: string;
+    brand: string;
+    model: string;
+    serial_number: string | null;
+  } | null>(null);
+  const { data: equipmentResults = [], isFetching: isSearchingEquipment } = useQuery({
+    queryKey: ["equipment-search", equipmentSearch],
+    queryFn: () => equipmentRepository.searchBySerialNumber(equipmentSearch),
+    enabled: equipmentSearch.trim().length >= 2,
   });
 
   const { data: techs = [] } = useTechnicians();
@@ -93,8 +103,17 @@ function NewOrderPage() {
         reported_fault: values.problem.trim(),
         source: values.source,
         technician_id: values.technicianId === "none" ? null : values.technicianId,
+        received_accessories: values.accessories.trim() || null,
+        advance: values.advance,
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data, values) => {
+      try {
+        const order = await ordersRepository.getById(data.id);
+        if (order) await downloadServiceOrderPdf(order, values.advance);
+      } catch (error) {
+        console.error("Could not generate service-order PDF", error);
+        toast.error("La orden fue creada, pero no se pudo generar el PDF.");
+      }
       toast.success(t("orders.created"));
       navigate({ to: "/orders/$orderId", params: { orderId: data.id } });
     },
@@ -133,20 +152,66 @@ function NewOrderPage() {
                         {t("clients.newClient")}
                       </Button>
                     </div>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("common.select")} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {clients.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {field.value ? (
+                      <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                        <span>{selectedClient?.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            field.onChange("");
+                            setSelectedClient(null);
+                            setClientSearch("");
+                          }}
+                        >
+                          Borrar campo
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Input
+                          value={clientSearch}
+                          onChange={(event) => setClientSearch(event.target.value)}
+                          placeholder="Buscar por nombre o cédula"
+                        />
+                        {clientSearch.trim().length > 0 && clientSearch.trim().length < 2 && (
+                          <p className="text-xs text-muted-foreground">
+                            Escriba al menos 2 caracteres.
+                          </p>
+                        )}
+                        {isSearchingClients && (
+                          <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
+                        )}
+                        {clientResults.length > 0 && (
+                          <ul className="max-h-44 overflow-auto rounded-md border">
+                            {clientResults.map((client) => (
+                              <li key={client.id}>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="h-auto w-full justify-start rounded-none px-3 py-2 text-left"
+                                  onClick={() => {
+                                    field.onChange(client.id);
+                                    setSelectedClient({ id: client.id, name: client.name });
+                                    setClientSearch(
+                                      `${client.name}${client.tax_id ? ` · ${client.tax_id}` : ""}`,
+                                    );
+                                  }}
+                                >
+                                  <span>{client.name}</span>
+                                  {client.tax_id && (
+                                    <span className="ml-2 text-xs text-muted-foreground">
+                                      {client.tax_id}
+                                    </span>
+                                  )}
+                                </Button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -165,31 +230,71 @@ function NewOrderPage() {
                         variant="ghost"
                         size="sm"
                         className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        disabled={!clientId}
                         onClick={() => setEquipmentDialogOpen(true)}
                       >
                         <Plus className="h-3 w-3" />
                         {t("equipmentPage.newEquipment")}
                       </Button>
                     </div>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={!clientId}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={
-                              clientId ? t("orders.selectEquipment") : t("orders.selectClientFirst")
-                            }
-                          />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {equipment.map((e) => (
-                          <SelectItem key={e.id} value={e.id}>
-                            {e.type} — {e.brand} {e.model}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {field.value && selectedEquipment ? (
+                      <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                        <span>
+                          {selectedEquipment.type} — {selectedEquipment.brand}{" "}
+                          {selectedEquipment.model}
+                          {selectedEquipment.serial_number
+                            ? ` · ${selectedEquipment.serial_number}`
+                            : ""}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            field.onChange("");
+                            setSelectedEquipment(null);
+                            setEquipmentSearch("");
+                          }}
+                        >
+                          Borrar campo
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Input
+                          value={equipmentSearch}
+                          onChange={(event) => setEquipmentSearch(event.target.value)}
+                          placeholder="Buscar por número de serie"
+                        />
+                        {isSearchingEquipment && (
+                          <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
+                        )}
+                        {equipmentResults.length > 0 && (
+                          <ul className="max-h-44 overflow-auto rounded-md border">
+                            {equipmentResults.map((equipment) => (
+                              <li key={equipment.id}>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="h-auto w-full justify-start rounded-none px-3 py-2 text-left"
+                                  onClick={() => {
+                                    field.onChange(equipment.id);
+                                    setSelectedEquipment(equipment);
+                                    setEquipmentSearch(equipment.serial_number ?? "");
+                                  }}
+                                >
+                                  {equipment.type} — {equipment.brand} {equipment.model}
+                                  {equipment.serial_number && (
+                                    <span className="ml-2 text-xs text-muted-foreground">
+                                      {equipment.serial_number}
+                                    </span>
+                                  )}
+                                </Button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -237,6 +342,38 @@ function NewOrderPage() {
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="accessories"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>{t("equipmentPage.accessories")}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={2}
+                        placeholder="Accesorios recibidos con esta orden"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="advance"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Anticipo</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" step="0.01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {/* Source */}
               <FormField
                 control={form.control}
@@ -279,19 +416,20 @@ function NewOrderPage() {
       <ClientFormDialog
         open={clientDialogOpen}
         onOpenChange={setClientDialogOpen}
-        onSuccess={(id) => {
-          qc.invalidateQueries({ queryKey: ["clients-min"] });
+        onSuccess={async (id) => {
+          const client = await customersRepository.getById(id);
           form.setValue("clientId", id);
+          setSelectedClient(client);
         }}
       />
 
       <EquipmentFormDialog
         open={equipmentDialogOpen}
         onOpenChange={setEquipmentDialogOpen}
-        lockedClientId={clientId}
-        onSuccess={(id) => {
-          qc.invalidateQueries({ queryKey: ["equipment-by-client", clientId] });
+        onSuccess={async (id) => {
+          const equipment = await equipmentRepository.getById(id);
           form.setValue("equipmentId", id);
+          setSelectedEquipment(equipment);
         }}
       />
     </div>

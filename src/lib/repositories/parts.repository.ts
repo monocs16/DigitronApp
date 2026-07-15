@@ -10,6 +10,27 @@ export const partsRepository = {
     return data;
   },
 
+  getTechnicianCatalog: async (): Promise<
+    { id: string; part_code: string; description: string }[]
+  > => {
+    const view = supabase.from("parts_technician" as never) as unknown as {
+      select: (columns: string) => {
+        order: (
+          column: string,
+          options: { ascending: boolean },
+        ) => Promise<{
+          data: { id: string; part_code: string; description: string }[] | null;
+          error: Error | null;
+        }>;
+      };
+    };
+    const { data, error } = await view
+      .select("id, part_code, description")
+      .order("part_code", { ascending: true });
+    if (error) throw error;
+    return data ?? [];
+  },
+
   create: async (payload: {
     part_code: string;
     description: string;

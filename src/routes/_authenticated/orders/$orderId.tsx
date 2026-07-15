@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link, useParams, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -22,6 +22,7 @@ import {
   photosRepository,
   profilesRepository,
   auditRepository,
+  orderNotesRepository,
   partsRepository,
 } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
@@ -61,11 +62,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { getStageLabel, getDecisionLabel, getRoleLabel, type OrderStage } from "@/lib/digitron";
+import { allowedPreviousStages } from "@/lib/state-machine";
 import { StageBadge } from "@/components/status-badge";
 import { OrderStageStepper } from "@/components/order-stage-stepper";
 import {
   transitionOrder,
-  createWarrantyOrder,
+  revertOrderStage,
   recordBudgetDecision,
   notifyCustomer,
   deliverOrder,
@@ -204,16 +206,16 @@ type PartLine = {
   id: string;
   part_id: string;
   quantity: number;
-  unit_cost_at_registration: number | null;
-  in_stock_at_registration: boolean;
+  unit_cost_at_registration?: number | null;
+  in_stock_at_registration?: boolean;
 };
 
 type CatalogPart = {
   id: string;
   part_code: string;
   description: string;
-  unit_cost: number;
-  stock: number;
+  unit_cost?: number;
+  stock?: number;
 };
 
 function PartsEditor({
@@ -226,7 +228,10 @@ function PartsEditor({
   setQty,
   catalog,
   onAddPart,
+  onRemovePart,
   isAddingPart,
+  isRemovingPart,
+  showCommercialData,
   t,
 }: {
   stage: "quoted" | "used";
@@ -238,7 +243,10 @@ function PartsEditor({
   setQty: (v: string) => void;
   catalog: CatalogPart[];
   onAddPart: (args: { stage: "quoted" | "used"; partId: string; qty: number }) => void;
+  onRemovePart: (id: string) => void;
   isAddingPart: boolean;
+  isRemovingPart: boolean;
+  showCommercialData: boolean;
   t: ReturnType<typeof useTranslation>["t"];
 }) {
   const partLabel = (id: string) => {
@@ -261,11 +269,22 @@ function PartsEditor({
                 {partLabel(l.part_id)} ×{l.quantity}
               </span>
               <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                {formatAmount(Number(l.unit_cost_at_registration) * l.quantity)}
-                {!l.in_stock_at_registration && (
+                {showCommercialData &&
+                  formatAmount(Number(l.unit_cost_at_registration) * l.quantity)}
+                {showCommercialData && !l.in_stock_at_registration && (
                   <Badge variant="outline" className="border-amber-500 text-amber-600">
                     {t("orders.notInStock")}
                   </Badge>
+                )}
+                {canEdit && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onRemovePart(l.id)}
+                    disabled={isRemovingPart}
+                  >
+                    {t("common.delete")}
+                  </Button>
                 )}
               </span>
             </li>
@@ -282,7 +301,10 @@ function PartsEditor({
               <SelectContent>
                 {catalog.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.part_code} — {c.description} ({t("orders.stockShort", { count: c.stock })})
+                    {c.part_code} — {c.description}
+                    {showCommercialData
+                      ? ` (${t("orders.stockShort", { count: c.stock ?? 0 })})`
+                      : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -316,9 +338,8 @@ function OrderDetailPage() {
   const { orderId } = useParams({ from: "/_authenticated/orders/$orderId" });
   const { profile, roles, session, loading: authLoading, authReady } = useAuth();
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const transition = useServerFn(transitionOrder);
-  const openWarranty = useServerFn(createWarrantyOrder);
+  const revertStage = useServerFn(revertOrderStage);
   const recordDecision = useServerFn(recordBudgetDecision);
   const notify = useServerFn(notifyCustomer);
   const deliver = useServerFn(deliverOrder);
@@ -327,6 +348,7 @@ function OrderDetailPage() {
   const isSuper = roles.includes("super");
   const isAdministrativo = roles.includes("administrativo");
   const isTecnico = roles.includes("tecnico");
+  const canSeeCommercial = isSuper || isAdministrativo;
 
   // ── Queries ──────────────────────────────────────────────────────────────
 
@@ -346,6 +368,7 @@ function OrderDetailPage() {
   const { data: budget } = useQuery({
     queryKey: ["budget", orderId],
     queryFn: () => budgetsRepository.getByOrderId(orderId),
+    enabled: canSeeCommercial,
   });
 
   const { data: repair } = useQuery({
@@ -356,6 +379,7 @@ function OrderDetailPage() {
   const { data: payments = [] } = useQuery({
     queryKey: ["payments", orderId],
     queryFn: () => paymentsRepository.getByOrderId(orderId),
+    enabled: canSeeCommercial,
   });
 
   const { data: techs = [] } = useTechnicians({ includeRoles: true });
@@ -368,6 +392,12 @@ function OrderDetailPage() {
   const { data: audit = [] } = useQuery({
     queryKey: ["audit", orderId],
     queryFn: () => auditRepository.getByOrderId(orderId),
+    enabled: canSeeCommercial,
+  });
+
+  const { data: notes = [] } = useQuery({
+    queryKey: ["order-notes", orderId],
+    queryFn: () => orderNotesRepository.getByOrderId(orderId),
   });
 
   const { data: photos = [] } = useQuery({
@@ -377,12 +407,13 @@ function OrderDetailPage() {
 
   const { data: catalog = [] } = useQuery({
     queryKey: ["parts-catalog"],
-    queryFn: () => partsRepository.getAll(),
+    queryFn: () =>
+      canSeeCommercial ? partsRepository.getAll() : partsRepository.getTechnicianCatalog(),
   });
 
   const { data: orderParts = [] } = useQuery({
     queryKey: ["order-parts", orderId],
-    queryFn: () => orderPartsRepository.getByOrderId(orderId),
+    queryFn: () => orderPartsRepository.getByOrderId(orderId, canSeeCommercial),
   });
 
   // ── React Hook Form instances ─────────────────────────────────────────────
@@ -419,11 +450,13 @@ function OrderDetailPage() {
   const [deferredReason, setDeferredReason] = useState("");
   const [receivedBy, setReceivedBy] = useState("");
   const [closingNotes, setClosingNotes] = useState("");
-  const [generalNotes, setGeneralNotes] = useState("");
+  const [newNote, setNewNote] = useState("");
   const [evalPartId, setEvalPartId] = useState("");
   const [evalPartQty, setEvalPartQty] = useState("1");
   const [repairPartId, setRepairPartId] = useState("");
   const [repairPartQty, setRepairPartQty] = useState("1");
+  const [revertReason, setRevertReason] = useState("");
+  const [revertTarget, setRevertTarget] = useState<OrderStage | "">("");
 
   // Confirmation dialogs
   const [confirmReject, setConfirmReject] = useState(false);
@@ -434,7 +467,6 @@ function OrderDetailPage() {
 
   useEffect(() => {
     if (order) {
-      setGeneralNotes(order.general_notes ?? "");
       setTechnicianAssign(order.technician_id ?? "none");
       setReceivedBy(order.received_by ?? "");
       setClosingNotes(order.closing_notes ?? "");
@@ -451,11 +483,11 @@ function OrderDetailPage() {
   useEffect(() => {
     if (budget) {
       budgetForm.reset({
-        labor_cost: budget.labor_cost,
-        parts_cost: budget.parts_cost,
-        freight_cost: budget.freight_cost,
-        other_charges: budget.other_charges,
-        advances: budget.advances,
+        labor_cost: Number(budget.labor_cost),
+        parts_cost: Number(budget.parts_cost),
+        freight_cost: Number(budget.freight_cost),
+        other_charges: Number(budget.other_charges),
+        advances: Number(budget.advances),
         customer_comments: budget.customer_comments ?? "",
       });
       setDeferredReason(budget.deferred_reason ?? "");
@@ -478,25 +510,35 @@ function OrderDetailPage() {
 
   const budgetValues = budgetForm.watch();
   const budgetTotal =
-    (budgetValues.labor_cost || 0) +
-    (budgetValues.parts_cost || 0) +
-    (budgetValues.freight_cost || 0) +
-    (budgetValues.other_charges || 0);
+    Number(budgetValues.labor_cost || 0) +
+    Number(budgetValues.parts_cost || 0) +
+    Number(budgetValues.freight_cost || 0) +
+    Number(budgetValues.other_charges || 0);
 
   const isAssigned = !!order && order.technician_id === profile?.id;
   const paidTotal = payments.reduce((s, p) => s + Number(p.amount), 0) + (budget?.advances ?? 0);
   const balance = budgetTotal - paidTotal;
   const balanceSettled = !!order?.balance_waived || balance <= 0;
+  const isClosed = order?.stage === "closed";
 
   // Role gates
-  const canEditEvaluation = isSuper || (isTecnico && isAssigned);
-  const canEditBudget = isSuper || isAdministrativo;
-  const canEditRepair = isSuper || (isTecnico && isAssigned);
-  const canEditPayments = isSuper || isAdministrativo;
-  const canAssignTech = isSuper || isAdministrativo;
-  const canEditNotes = isSuper || isAdministrativo || isAssigned;
-  const ownerAdmin = isSuper || isAdministrativo;
-  const ownerTechAssigned = isSuper || (isTecnico && isAssigned);
+  const canEditEvaluation = !isClosed && (isSuper || (isTecnico && isAssigned));
+  const canEditBudget = !isClosed && (isSuper || isAdministrativo);
+  const canEditRepair = !isClosed && (isSuper || (isTecnico && isAssigned));
+  const canEditPayments = !isClosed && (isSuper || isAdministrativo);
+  const canAssignTech = !isClosed && (isSuper || isAdministrativo);
+  const canEditNotes = !isClosed && (isSuper || isAdministrativo || isAssigned);
+  const ownerAdmin = !isClosed && (isSuper || isAdministrativo);
+  const ownerTechAssigned = !isClosed && (isSuper || (isTecnico && isAssigned));
+  const previousStages =
+    order && !isClosed
+      ? allowedPreviousStages(order.stage as OrderStage, {
+          roles,
+          isAssignedTechnician: isAssigned,
+          budgetApproved: budget?.decision === "approved",
+          balanceSettled,
+        })
+      : [];
 
   const invalidate = (...keys: string[]) => {
     qc.invalidateQueries({ queryKey: ["audit", orderId] });
@@ -518,11 +560,21 @@ function OrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const warrantyOrder = useMutation({
-    mutationFn: async () => openWarranty({ data: { origin_order_id: orderId } }),
-    onSuccess: (res) => {
-      toast.success(t("orders.warrantyCreated"));
-      navigate({ to: "/orders/$orderId", params: { orderId: res.id } });
+  const revert = useMutation({
+    mutationFn: async () => {
+      if (!revertTarget || !revertReason.trim()) {
+        throw new Error("Indique el motivo de la corrección.");
+      }
+      await revertStage({
+        data: { order_id: orderId, target_stage: revertTarget, reason: revertReason.trim() },
+      });
+    },
+    onSuccess: () => {
+      toast.success(t("orders.stageUpdated"));
+      setRevertReason("");
+      setRevertTarget("");
+      invalidate("order");
+      qc.invalidateQueries({ queryKey: ["order-notes", orderId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -537,11 +589,15 @@ function OrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const saveNotes = useMutation({
-    mutationFn: () => ordersRepository.updateNotes(orderId, generalNotes || null),
+  const saveNote = useMutation({
+    mutationFn: () => {
+      if (!profile?.id || !newNote.trim()) throw new Error("La nota no puede estar vacía.");
+      return orderNotesRepository.create(orderId, newNote, profile.id);
+    },
     onSuccess: () => {
       toast.success(t("orders.changesSaved"));
-      invalidate("order");
+      setNewNote("");
+      qc.invalidateQueries({ queryKey: ["order-notes", orderId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -646,15 +702,38 @@ function OrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const concludeRepair = useMutation({
+    mutationFn: async () => {
+      const now = new Date().toISOString();
+      await repairsRepository.upsert(repair, {
+        order_id: orderId,
+        work_description: repairForm.getValues("work_description") || null,
+        technician_id: profile?.id ?? null,
+        state: "completed",
+        started_at: repair?.started_at ?? now,
+        finished_at: now,
+      });
+      await transition({ data: { order_id: orderId, target_stage: "payment" } });
+    },
+    onSuccess: () => {
+      toast.success(t("orders.stageUpdated"));
+      invalidate("repair", "order");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const addPayment = useMutation({
-    mutationFn: (data: PaymentValues) =>
-      paymentsRepository.create({
+    mutationFn: (data: PaymentValues) => {
+      if (balance <= 0) throw new Error("La orden no tiene saldo pendiente.");
+      if (data.amount > balance) throw new Error("El pago no puede exceder el saldo pendiente.");
+      return paymentsRepository.create({
         order_id: orderId,
         amount: data.amount,
         method: data.method,
         reference: data.reference || null,
         registered_by: profile?.id ?? null,
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success(t("orders.paymentAdded"));
       paymentForm.reset({ amount: 0, method: "cash", reference: "" });
@@ -682,8 +761,6 @@ function OrderDetailPage() {
         part_id: args.partId,
         stage: args.stage,
         quantity: args.qty,
-        unit_cost_at_registration: part.unit_cost,
-        in_stock_at_registration: part.stock >= args.qty,
         ...(args.stage === "quoted" && evaluation ? { evaluation_id: evaluation.id } : {}),
       });
     },
@@ -699,6 +776,17 @@ function OrderDetailPage() {
         qc.invalidateQueries({ queryKey: ["parts"] });
       }
       qc.invalidateQueries({ queryKey: ["order-parts", orderId] });
+      qc.invalidateQueries({ queryKey: ["audit", orderId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removePart = useMutation({
+    mutationFn: (id: string) => orderPartsRepository.delete(id),
+    onSuccess: () => {
+      toast.success(t("orders.changesSaved"));
+      qc.invalidateQueries({ queryKey: ["order-parts", orderId] });
+      qc.invalidateQueries({ queryKey: ["parts-catalog"] });
       qc.invalidateQueries({ queryKey: ["audit", orderId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -736,6 +824,8 @@ function OrderDetailPage() {
 
   if (authLoading || orderPending) return <OrderDetailSkeleton />;
   if (!order) return <p className="text-sm text-muted-foreground">{t("orders.notFound")}</p>;
+  const receivedAccessories = (order as { received_accessories?: string | null })
+    .received_accessories;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -903,8 +993,8 @@ function OrderDetailPage() {
         return ownerTechAssigned ? (
           <Button
             className="w-full"
-            onClick={() => changeStage.mutate("payment")}
-            disabled={changeStage.isPending}
+            onClick={() => concludeRepair.mutate()}
+            disabled={concludeRepair.isPending}
           >
             {t("orders.markRepairComplete")}
           </Button>
@@ -994,21 +1084,7 @@ function OrderDetailPage() {
         );
 
       case "closed":
-        return (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">{t("orders.orderClosed")}</p>
-            {ownerAdmin && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => warrantyOrder.mutate()}
-                disabled={warrantyOrder.isPending}
-              >
-                {t("orders.openWarranty")}
-              </Button>
-            )}
-          </div>
-        );
+        return <p className="text-sm text-muted-foreground">{t("orders.orderClosed")}</p>;
 
       default:
         return null;
@@ -1088,6 +1164,43 @@ function OrderDetailPage() {
                 </Select>
               </div>
             )}
+            {previousStages.length > 0 && (
+              <div className="min-w-[220px] space-y-2 border-t pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+                <Label className="text-xs text-muted-foreground">Corregir fase</Label>
+                <Select
+                  value={revertTarget}
+                  onValueChange={(value) => setRevertTarget(value as OrderStage)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Seleccionar fase anterior" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {previousStages.map((stage) => (
+                      <SelectItem key={stage} value={stage}>
+                        {getStageLabel(stage, t)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  rows={2}
+                  value={revertReason}
+                  onChange={(event) => setRevertReason(event.target.value)}
+                  placeholder="Motivo de la corrección"
+                  className="text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={!revertTarget || !revertReason.trim() || revert.isPending}
+                  onClick={() => revert.mutate()}
+                >
+                  Regresar a fase anterior
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -1127,6 +1240,14 @@ function OrderDetailPage() {
                 </p>
                 <p className="mt-1 whitespace-pre-wrap">{order.reported_fault}</p>
               </div>
+              {receivedAccessories && (
+                <div className="sm:col-span-2">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {t("equipmentPage.accessories")}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap">{receivedAccessories}</p>
+                </div>
+              )}
               <div className="sm:col-span-2 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
                 <span>
                   {t("orders.origin")}:{" "}
@@ -1207,7 +1328,10 @@ function OrderDetailPage() {
                     setQty={setEvalPartQty}
                     catalog={catalog}
                     onAddPart={(args) => addPart.mutate(args)}
+                    onRemovePart={(id) => removePart.mutate(id)}
                     isAddingPart={addPart.isPending}
+                    isRemovingPart={removePart.isPending}
+                    showCommercialData={canSeeCommercial}
                     t={t}
                   />
                 </>
@@ -1216,112 +1340,123 @@ function OrderDetailPage() {
           </Card>
 
           {/* ── Budget section ── */}
-          <Card
-            className={budgetStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}
-          >
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base">{t("orders.budget")}</CardTitle>
-              <SectionPill status={budgetStatus} t={t} />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {budgetStatus === "future" ? (
-                <p className="text-sm text-muted-foreground">{t("orders.sectionPending")}</p>
-              ) : (
-                <Form {...budgetForm}>
-                  <form
-                    onSubmit={budgetForm.handleSubmit((data) => saveBudget.mutate(data))}
-                    className="space-y-4"
-                  >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      {(
-                        [
-                          ["orders.laborCost", "labor_cost"],
-                          ["orders.partsCost", "parts_cost"],
-                          ["orders.freightCost", "freight_cost"],
-                          ["orders.otherCharges", "other_charges"],
-                          ["orders.advances", "advances"],
-                        ] as const
-                      ).map(([labelKey, fieldName]) => (
-                        <FormField
-                          key={fieldName}
-                          control={budgetForm.control}
-                          name={fieldName}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t(labelKey)}</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  {...field}
-                                  disabled={!canEditBudget}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      ))}
-                    </div>
-                    {canEditBudget && quotedPartsTotal > 0 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => budgetForm.setValue("parts_cost", quotedPartsTotal)}
-                      >
-                        {t("orders.usePartsTotal", { total: money(quotedPartsTotal) })}
-                      </Button>
-                    )}
-                    <FormField
-                      control={budgetForm.control}
-                      name="customer_comments"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("orders.customerComments")}</FormLabel>
-                          <FormControl>
-                            <Textarea rows={2} {...field} disabled={!canEditBudget} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Running total */}
-                    <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                      <span className="text-muted-foreground">{t("orders.total")}</span>
-                      <span className="font-semibold">{money(budgetTotal)}</span>
-                    </div>
-
-                    {/* Decision display */}
-                    {budget?.decision && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-muted-foreground">{t("orders.decision")}:</span>
-                        <span className="font-medium">{getDecisionLabel(budget.decision, t)}</span>
-                        {budget.decision === "deferred" && budget.deferred_reason && (
-                          <span className="text-muted-foreground">— {budget.deferred_reason}</span>
-                        )}
+          {canSeeCommercial && (
+            <Card
+              className={budgetStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}
+            >
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardTitle className="text-base">{t("orders.budget")}</CardTitle>
+                <SectionPill status={budgetStatus} t={t} />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {budgetStatus === "future" ? (
+                  <p className="text-sm text-muted-foreground">{t("orders.sectionPending")}</p>
+                ) : (
+                  <Form {...budgetForm}>
+                    <form
+                      onSubmit={budgetForm.handleSubmit((data) => saveBudget.mutate(data))}
+                      className="space-y-4"
+                    >
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {(
+                          [
+                            ["orders.laborCost", "labor_cost"],
+                            ["orders.partsCost", "parts_cost"],
+                            ["orders.freightCost", "freight_cost"],
+                            ["orders.otherCharges", "other_charges"],
+                            ["orders.advances", "advances"],
+                          ] as const
+                        ).map(([labelKey, fieldName]) => (
+                          <FormField
+                            key={fieldName}
+                            control={budgetForm.control}
+                            name={fieldName}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t(labelKey)}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    {...field}
+                                    disabled={!canEditBudget}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ))}
                       </div>
-                    )}
-
-                    {canEditBudget && (
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        {budget && (
-                          <Button type="button" variant="outline" size="sm" onClick={downloadQuote}>
-                            {t("orders.downloadQuote")}
-                          </Button>
-                        )}
-                        <Button type="submit" size="sm" disabled={saveBudget.isPending}>
-                          {t("orders.saveBudget")}
+                      {canEditBudget && quotedPartsTotal > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => budgetForm.setValue("parts_cost", quotedPartsTotal)}
+                        >
+                          {t("orders.usePartsTotal", { total: money(quotedPartsTotal) })}
                         </Button>
+                      )}
+                      <FormField
+                        control={budgetForm.control}
+                        name="customer_comments"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("orders.customerComments")}</FormLabel>
+                            <FormControl>
+                              <Textarea rows={2} {...field} disabled={!canEditBudget} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Running total */}
+                      <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">{t("orders.total")}</span>
+                        <span className="font-semibold">{money(budgetTotal)}</span>
                       </div>
-                    )}
-                  </form>
-                </Form>
-              )}
-            </CardContent>
-          </Card>
+
+                      {/* Decision display */}
+                      {budget?.decision && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-muted-foreground">{t("orders.decision")}:</span>
+                          <span className="font-medium">
+                            {getDecisionLabel(budget.decision, t)}
+                          </span>
+                          {budget.decision === "deferred" && budget.deferred_reason && (
+                            <span className="text-muted-foreground">
+                              — {budget.deferred_reason}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {canEditBudget && (
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {budget && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={downloadQuote}
+                            >
+                              {t("orders.downloadQuote")}
+                            </Button>
+                          )}
+                          <Button type="submit" size="sm" disabled={saveBudget.isPending}>
+                            {t("orders.saveBudget")}
+                          </Button>
+                        </div>
+                      )}
+                    </form>
+                  </Form>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* ── Repair section ── */}
           <Card
@@ -1367,32 +1502,6 @@ function OrderDetailPage() {
                     </div>
                     {canEditRepair && repairStatus === "active" && (
                       <div className="flex flex-wrap justify-end gap-2">
-                        {!repair?.started_at && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              saveRepair.mutate({ state: "in_progress", stamp: "started_at" })
-                            }
-                            disabled={saveRepair.isPending}
-                          >
-                            {t("orders.startRepair")}
-                          </Button>
-                        )}
-                        {repair?.started_at && !repair?.finished_at && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              saveRepair.mutate({ state: "done", stamp: "finished_at" })
-                            }
-                            disabled={saveRepair.isPending}
-                          >
-                            {t("orders.finishRepair")}
-                          </Button>
-                        )}
                         <Button type="submit" size="sm" disabled={saveRepair.isPending}>
                           {t("orders.saveRepair")}
                         </Button>
@@ -1414,7 +1523,10 @@ function OrderDetailPage() {
                     setQty={setRepairPartQty}
                     catalog={catalog}
                     onAddPart={(args) => addPart.mutate(args)}
+                    onRemovePart={(id) => removePart.mutate(id)}
                     isAddingPart={addPart.isPending}
+                    isRemovingPart={removePart.isPending}
+                    showCommercialData={canSeeCommercial}
                     t={t}
                   />
                 </>
@@ -1423,123 +1535,127 @@ function OrderDetailPage() {
           </Card>
 
           {/* ── Payments section ── */}
-          <Card
-            className={paymentStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined}
-          >
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base">{t("orders.payments")}</CardTitle>
-              <SectionPill status={paymentStatus} t={t} />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {paymentStatus === "future" ? (
-                <p className="text-sm text-muted-foreground">{t("orders.sectionPending")}</p>
-              ) : (
-                <>
-                  {/* Totals row */}
-                  <div className="grid gap-2 text-sm sm:grid-cols-3">
-                    <div className="rounded-md border px-3 py-2">
-                      <p className="text-xs text-muted-foreground">{t("orders.total")}</p>
-                      <p className="font-semibold">{money(budgetTotal)}</p>
-                    </div>
-                    <div className="rounded-md border px-3 py-2">
-                      <p className="text-xs text-muted-foreground">{t("orders.totalPaid")}</p>
-                      <p className="font-semibold">{money(paidTotal)}</p>
-                    </div>
-                    <div className="rounded-md border px-3 py-2">
-                      <p className="text-xs text-muted-foreground">{t("orders.balance")}</p>
-                      <p
-                        className={`font-semibold ${balance > 0 ? "text-destructive" : "text-emerald-600"}`}
-                      >
-                        {money(balance)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {payments.length > 0 && (
-                    <ul className="divide-y rounded-md border text-sm">
-                      {payments.map((p) => (
-                        <li key={p.id} className="flex items-center justify-between px-3 py-2">
-                          <span>
-                            {money(Number(p.amount))} · {t(`orders.method_${p.method}`, p.method)}
-                            {p.reference ? ` · ${p.reference}` : ""}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDate(p.paid_at)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {canEditPayments && paymentStatus === "active" && (
-                    <>
-                      <Separator />
-                      <Form {...paymentForm}>
-                        <form
-                          onSubmit={paymentForm.handleSubmit((data) => addPayment.mutate(data))}
-                          className="grid gap-3 sm:grid-cols-4 sm:items-end"
+          {canSeeCommercial && (
+            <Card
+              className={
+                paymentStatus === "active" ? "ring-1 ring-primary/25 shadow-sm" : undefined
+              }
+            >
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardTitle className="text-base">{t("orders.payments")}</CardTitle>
+                <SectionPill status={paymentStatus} t={t} />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {paymentStatus === "future" ? (
+                  <p className="text-sm text-muted-foreground">{t("orders.sectionPending")}</p>
+                ) : (
+                  <>
+                    {/* Totals row */}
+                    <div className="grid gap-2 text-sm sm:grid-cols-3">
+                      <div className="rounded-md border px-3 py-2">
+                        <p className="text-xs text-muted-foreground">{t("orders.total")}</p>
+                        <p className="font-semibold">{money(budgetTotal)}</p>
+                      </div>
+                      <div className="rounded-md border px-3 py-2">
+                        <p className="text-xs text-muted-foreground">{t("orders.totalPaid")}</p>
+                        <p className="font-semibold">{money(paidTotal)}</p>
+                      </div>
+                      <div className="rounded-md border px-3 py-2">
+                        <p className="text-xs text-muted-foreground">{t("orders.balance")}</p>
+                        <p
+                          className={`font-semibold ${balance > 0 ? "text-destructive" : "text-emerald-600"}`}
                         >
-                          <FormField
-                            control={paymentForm.control}
-                            name="amount"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>{t("orders.amount")}</FormLabel>
-                                <FormControl>
-                                  <Input type="number" min="0" step="0.01" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={paymentForm.control}
-                            name="method"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>{t("orders.method")}</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
+                          {money(balance)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {payments.length > 0 && (
+                      <ul className="divide-y rounded-md border text-sm">
+                        {payments.map((p) => (
+                          <li key={p.id} className="flex items-center justify-between px-3 py-2">
+                            <span>
+                              {money(Number(p.amount))} · {t(`orders.method_${p.method}`, p.method)}
+                              {p.reference ? ` · ${p.reference}` : ""}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(p.paid_at)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {canEditPayments && paymentStatus === "active" && (
+                      <>
+                        <Separator />
+                        <Form {...paymentForm}>
+                          <form
+                            onSubmit={paymentForm.handleSubmit((data) => addPayment.mutate(data))}
+                            className="grid gap-3 sm:grid-cols-4 sm:items-end"
+                          >
+                            <FormField
+                              control={paymentForm.control}
+                              name="amount"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t("orders.amount")}</FormLabel>
                                   <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
+                                    <Input type="number" min="0" step="0.01" {...field} />
                                   </FormControl>
-                                  <SelectContent>
-                                    {PAYMENT_METHODS.map((m) => (
-                                      <SelectItem key={m} value={m}>
-                                        {t(`orders.method_${m}`)}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={paymentForm.control}
-                            name="reference"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>{t("orders.reference")}</FormLabel>
-                                <FormControl>
-                                  <Input {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <Button type="submit" disabled={addPayment.isPending}>
-                            {t("orders.addPayment")}
-                          </Button>
-                        </form>
-                      </Form>
-                    </>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={paymentForm.control}
+                              name="method"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t("orders.method")}</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {PAYMENT_METHODS.map((m) => (
+                                        <SelectItem key={m} value={m}>
+                                          {t(`orders.method_${m}`)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={paymentForm.control}
+                              name="reference"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t("orders.reference")}</FormLabel>
+                                  <FormControl>
+                                    <Input {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <Button type="submit" disabled={addPayment.isPending || balance <= 0}>
+                              {t("orders.addPayment")}
+                            </Button>
+                          </form>
+                        </Form>
+                      </>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* ── Photos ── */}
           <Card>
@@ -1571,6 +1687,7 @@ function OrderDetailPage() {
                         variant="destructive"
                         className="absolute right-1 top-1 h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
                         onClick={() => deletePhoto.mutate(p)}
+                        disabled={isClosed}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -1578,7 +1695,7 @@ function OrderDetailPage() {
                   ))}
                 </div>
               )}
-              {photos.length < MAX_PHOTOS && (
+              {!isClosed && photos.length < MAX_PHOTOS && (
                 <div className="flex items-center gap-3">
                   <Label
                     htmlFor="photo-upload"
@@ -1614,8 +1731,8 @@ function OrderDetailPage() {
             <CardContent className="space-y-3">
               <Textarea
                 rows={4}
-                value={generalNotes}
-                onChange={(e) => setGeneralNotes(e.target.value)}
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
                 disabled={!canEditNotes}
                 className="text-sm"
               />
@@ -1623,31 +1740,21 @@ function OrderDetailPage() {
                 <div className="flex justify-end">
                   <Button
                     size="sm"
-                    onClick={() => saveNotes.mutate()}
-                    disabled={saveNotes.isPending}
+                    onClick={() => saveNote.mutate()}
+                    disabled={saveNote.isPending || !newNote.trim()}
                   >
                     {t("orders.saveChanges")}
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{t("orders.history")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {audit.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("orders.noActivity")}</p>
-              ) : (
-                <ol className="space-y-3">
-                  {audit.map((a) => (
-                    <li key={a.id} className="border-l-2 border-border pl-3 text-sm">
-                      <p className="font-medium leading-snug">{auditLabel(a)}</p>
+              {notes.length > 0 && (
+                <ol className="space-y-3 border-t pt-3">
+                  {notes.map((note) => (
+                    <li key={note.id} className="border-l-2 border-border pl-3 text-sm">
+                      <p className="whitespace-pre-wrap">{note.body}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {formatDateTime(a.change_ts)}
-                        {a.app_user && ` · ${nameById.get(a.app_user) ?? t("common.noData")}`}
+                        {formatDateTime(note.created_at)} ·{" "}
+                        {nameById.get(note.created_by) ?? t("common.noData")}
                       </p>
                     </li>
                   ))}
@@ -1655,6 +1762,31 @@ function OrderDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {canSeeCommercial && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t("orders.history")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {audit.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{t("orders.noActivity")}</p>
+                ) : (
+                  <ol className="space-y-3">
+                    {audit.map((a) => (
+                      <li key={a.id} className="border-l-2 border-border pl-3 text-sm">
+                        <p className="font-medium leading-snug">{auditLabel(a)}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatDateTime(a.change_ts)}
+                          {a.app_user && ` · ${nameById.get(a.app_user) ?? t("common.noData")}`}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 

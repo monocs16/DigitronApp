@@ -37,12 +37,9 @@ type EquipmentRow = {
   brand: string;
   model: string;
   serial_number: string | null;
-  accessories: string | null;
   purchase_invoice: string | null;
   purchase_store: string | null;
   purchase_date: string | null;
-  client_id: string;
-  customers: { name: string } | null;
 };
 
 function EquipmentPage() {
@@ -136,10 +133,6 @@ function EquipmentPage() {
                       <span className="font-mono text-xs text-muted-foreground">
                         {eq.serial_number}
                       </span>
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · {eq.customers?.name ?? t("common.noData")}
-                      </span>
                     </div>
                     {eq.orders.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
@@ -191,7 +184,6 @@ function EquipmentPage() {
                   <TableHead>{t("equipmentPage.brand")}</TableHead>
                   <TableHead>{t("equipmentPage.model")}</TableHead>
                   <TableHead>{t("equipmentPage.serial")}</TableHead>
-                  <TableHead>{t("common.client")}</TableHead>
                   <TableHead className="w-[120px] text-right">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -203,9 +195,6 @@ function EquipmentPage() {
                     <TableCell>{e.model}</TableCell>
                     <TableCell className="font-mono text-xs">
                       {e.serial_number ?? t("common.noData")}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {e.customers?.name ?? t("common.noData")}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="icon" title={t("common.viewOrders")}>

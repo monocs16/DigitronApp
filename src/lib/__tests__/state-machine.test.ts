@@ -5,6 +5,7 @@ import {
   gateAllows,
   STAGE_TRANSITIONS,
   STAGE_ACTOR_ROLES,
+  allowedPreviousStages,
 } from "@/lib/state-machine";
 import type { TransitionContext } from "@/lib/state-machine";
 import type { OrderStage } from "@/lib/digitron";
@@ -193,5 +194,21 @@ describe("allowedNextStages — closed stage", () => {
 
   it("returns empty for technician on closed order", () => {
     expect(allowedNextStages("closed", techCtx())).toHaveLength(0);
+  });
+});
+
+describe("allowedPreviousStages — audited corrections", () => {
+  it("allows an administrator to return a directly preceding stage", () => {
+    expect(allowedPreviousStages("payment", adminCtx())).toEqual(["repair"]);
+  });
+
+  it("limits an assigned technician to correcting their own completed stages", () => {
+    expect(allowedPreviousStages("budget", techCtx())).toEqual(["evaluation"]);
+    expect(allowedPreviousStages("payment", techCtx())).toEqual(["repair"]);
+    expect(allowedPreviousStages("repair", techCtx())).toEqual([]);
+  });
+
+  it("does not allow an unassigned technician to revert a stage", () => {
+    expect(allowedPreviousStages("budget", techCtx({ isAssignedTechnician: false }))).toEqual([]);
   });
 });

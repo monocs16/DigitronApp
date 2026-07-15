@@ -39,7 +39,7 @@ export const ordersRepository = {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        `*, customers(id, name, phone1, email), equipment(id, type, brand, model, serial_number)`,
+        `*, customers(id, name, phone1, email, address), equipment(id, type, brand, model, serial_number)`,
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -53,9 +53,22 @@ export const ordersRepository = {
     reported_fault: string;
     source: string;
     technician_id: string | null;
+    received_accessories: string | null;
+    advance: number;
   }) => {
-    const { data, error } = await supabase.from("orders").insert(payload).select("id").single();
+    const { advance, ...order } = payload;
+    const { data, error } = await supabase
+      .from("orders")
+      .insert({ ...order, stage: "evaluation" } as never)
+      .select("id")
+      .single();
     if (error) throw error;
+    if (advance > 0) {
+      const { error: budgetError } = await supabase
+        .from("budgets")
+        .insert({ order_id: data.id as string, advances: advance });
+      if (budgetError) throw budgetError;
+    }
     return data;
   },
 
@@ -63,14 +76,6 @@ export const ordersRepository = {
     const { error } = await supabase
       .from("orders")
       .update({ technician_id: technicianId })
-      .eq("id", orderId);
-    if (error) throw error;
-  },
-
-  updateNotes: async (orderId: string, notes: string | null) => {
-    const { error } = await supabase
-      .from("orders")
-      .update({ general_notes: notes })
       .eq("id", orderId);
     if (error) throw error;
   },

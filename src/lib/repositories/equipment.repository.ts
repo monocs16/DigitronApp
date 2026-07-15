@@ -5,7 +5,7 @@ export const equipmentRepository = {
     const { data, error } = await supabase
       .from("equipment")
       .select(
-        "id, type, brand, model, serial_number, accessories, purchase_invoice, purchase_store, purchase_date, client_id, customers(name)",
+        "id, type, brand, model, serial_number, purchase_invoice, purchase_store, purchase_date",
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -15,35 +15,71 @@ export const equipmentRepository = {
   getBySerialNumber: async (serial: string) => {
     const { data, error } = await supabase
       .from("equipment")
-      .select(
-        "id, type, brand, model, serial_number, customers(name), orders(id, order_number, stage, intake_at)",
-      )
+      .select("id, type, brand, model, serial_number, orders(id, order_number, stage, intake_at)")
       .ilike("serial_number", `%${serial}%`);
     if (error) throw error;
     return data;
   },
 
-  getByClientId: async (clientId: string) => {
+  searchBySerialNumber: async (term: string) => {
+    const value = term.trim();
+    if (value.length < 2) return [];
     const { data, error } = await supabase
       .from("equipment")
-      .select("id, brand, model, type")
-      .eq("client_id", clientId);
+      .select("id, type, brand, model, serial_number")
+      .ilike("serial_number", `%${value}%`)
+      .order("serial_number")
+      .limit(20);
     if (error) throw error;
     return data;
   },
 
+  getAllMin: async () => {
+    const { data, error } = await supabase
+      .from("equipment")
+      .select("id, brand, model, type, serial_number")
+      .order("brand")
+      .order("model");
+    if (error) throw error;
+    return data;
+  },
+
+  getById: async (id: string) => {
+    const { data, error } = await supabase
+      .from("equipment")
+      .select("id, type, brand, model, serial_number")
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  getSuggestions: async () => {
+    const { data, error } = await supabase.from("equipment").select("type, brand, model");
+    if (error) throw error;
+    const unique = (key: "type" | "brand" | "model") =>
+      [...new Set((data ?? []).map((row) => row[key].trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b),
+      );
+    return { types: unique("type"), brands: unique("brand"), models: unique("model") };
+  },
+
   create: async (payload: {
-    client_id: string;
     type: string;
     brand: string;
     model: string;
     serial_number: string | null;
-    accessories: string | null;
     purchase_invoice: string | null;
     purchase_store: string | null;
     purchase_date: string | null;
   }) => {
-    const { data, error } = await supabase.from("equipment").insert(payload).select("id").single();
+    // The schema type is regenerated after the migration is applied; this cast
+    // keeps the client buildable while a developer has pending local migrations.
+    const { data, error } = await supabase
+      .from("equipment")
+      .insert(payload as never)
+      .select("id")
+      .single();
     if (error) throw error;
     return data.id as string;
   },
@@ -51,12 +87,10 @@ export const equipmentRepository = {
   update: async (
     id: string,
     payload: {
-      client_id: string;
       type: string;
       brand: string;
       model: string;
       serial_number: string | null;
-      accessories: string | null;
       purchase_invoice: string | null;
       purchase_store: string | null;
       purchase_date: string | null;

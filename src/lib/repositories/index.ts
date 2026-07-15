@@ -4,6 +4,7 @@ export { customersRepository } from "./customers.repository";
 export { equipmentRepository } from "./equipment.repository";
 export { evaluationsRepository } from "./evaluations.repository";
 export { orderPartsRepository } from "./order-parts.repository";
+export { orderNotesRepository } from "./order-notes.repository";
 export { ordersRepository } from "./orders.repository";
 export { paymentsRepository } from "./payments.repository";
 export { photosRepository } from "./photos.repository";

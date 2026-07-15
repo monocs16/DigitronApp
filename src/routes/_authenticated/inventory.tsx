@@ -34,9 +34,9 @@ type PartRow = {
   id: string;
   part_code: string;
   description: string;
-  unit_cost: number;
-  stock: number;
-  supplier: string | null;
+  unit_cost?: number;
+  stock?: number;
+  supplier?: string | null;
 };
 
 function InventoryPage() {
@@ -45,10 +45,14 @@ function InventoryPage() {
   const qc = useQueryClient();
   const mayCreate = canCreate(roles, "inventario");
   const mayEdit = canEdit(roles, "inventario");
+  const canSeeCommercial = roles.includes("super") || roles.includes("administrativo");
 
   const { data: parts = [], isLoading } = useQuery({
     queryKey: ["parts"],
-    queryFn: () => partsRepository.getAll() as Promise<PartRow[]>,
+    queryFn: () =>
+      (canSeeCommercial
+        ? partsRepository.getAll()
+        : partsRepository.getTechnicianCatalog()) as Promise<PartRow[]>,
   });
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -105,9 +109,13 @@ function InventoryPage() {
                 <TableRow>
                   <TableHead>{t("inventory.partCode")}</TableHead>
                   <TableHead>{t("inventory.description")}</TableHead>
-                  <TableHead>{t("inventory.supplier")}</TableHead>
-                  <TableHead className="text-right">{t("inventory.unitCost")}</TableHead>
-                  <TableHead className="text-right">{t("inventory.stock")}</TableHead>
+                  {canSeeCommercial && <TableHead>{t("inventory.supplier")}</TableHead>}
+                  {canSeeCommercial && (
+                    <TableHead className="text-right">{t("inventory.unitCost")}</TableHead>
+                  )}
+                  {canSeeCommercial && (
+                    <TableHead className="text-right">{t("inventory.stock")}</TableHead>
+                  )}
                   <TableHead className="w-[120px] text-right">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -116,30 +124,36 @@ function InventoryPage() {
                   <TableRow key={p.id}>
                     <TableCell className="font-mono text-xs">{p.part_code}</TableCell>
                     <TableCell className="font-medium">{p.description}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {p.supplier ?? t("common.noData")}
-                    </TableCell>
-                    <TableCell className="text-right">{formatAmount(p.unit_cost)}</TableCell>
+                    {canSeeCommercial && (
+                      <TableCell className="text-muted-foreground">
+                        {p.supplier ?? t("common.noData")}
+                      </TableCell>
+                    )}
+                    {canSeeCommercial && (
+                      <TableCell className="text-right">{formatAmount(p.unit_cost ?? 0)}</TableCell>
+                    )}
+                    {canSeeCommercial && (
+                      <TableCell className="text-right">
+                        <span className="inline-flex items-center gap-2">
+                          {stockBadge(p.stock ?? 0)}
+                          {p.stock}
+                        </span>
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
-                      <span className="inline-flex items-center gap-2">
-                        {stockBadge(p.stock)}
-                        {p.stock}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {mayEdit && (
+                      {canSeeCommercial && mayEdit && (
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            setEditing(p);
+                            setEditing(p as PartEditing);
                             setDialogOpen(true);
                           }}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                       )}
-                      {mayEdit && (
+                      {canSeeCommercial && mayEdit && (
                         <DeleteConfirmButton
                           title={t("inventory.deleteTitle")}
                           description={t("common.cannotUndo")}
