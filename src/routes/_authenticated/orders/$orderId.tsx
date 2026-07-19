@@ -9,7 +9,7 @@ import { useTechnicians } from "@/hooks/use-technicians";
 import { PageHeader } from "@/components/page-header";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, Trash2, ImageIcon, CheckCircle2, Lock } from "lucide-react";
+import { ArrowLeft, Upload, Trash2, ImageIcon, CheckCircle2, Lock, Printer } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -28,6 +28,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import i18n from "@/lib/i18n";
 import { formatAmount, formatDate, formatDateTime } from "@/lib/utils";
+import { downloadServiceOrderPdf } from "@/lib/service-order-pdf";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -344,6 +345,7 @@ function OrderDetailPage() {
   const notify = useServerFn(notifyCustomer);
   const deliver = useServerFn(deliverOrder);
   const finalize = useServerFn(closeOrder);
+  const [isReprinting, setIsReprinting] = useState(false);
 
   const isSuper = roles.includes("super");
   const isAdministrativo = roles.includes("administrativo");
@@ -365,7 +367,7 @@ function OrderDetailPage() {
     queryFn: () => evaluationsRepository.getByOrderId(orderId),
   });
 
-  const { data: budget } = useQuery({
+  const { data: budget, isPending: budgetPending } = useQuery({
     queryKey: ["budget", orderId],
     queryFn: () => budgetsRepository.getByOrderId(orderId),
     enabled: canSeeCommercial,
@@ -855,6 +857,19 @@ function OrderDetailPage() {
     doc.save(`quote-${order.order_number}.pdf`);
   };
 
+  const reprintServiceOrder = async () => {
+    setIsReprinting(true);
+    try {
+      await downloadServiceOrderPdf(order, Number(budget?.advances ?? 0));
+      toast.success(t("orders.serviceOrderPdfDownloaded"));
+    } catch (error) {
+      console.error("Unable to download service order PDF", error);
+      toast.error(t("orders.serviceOrderPdfError"));
+    } finally {
+      setIsReprinting(false);
+    }
+  };
+
   const auditLabel = (a: (typeof audit)[number]) => {
     if (a.operation === "INSERT") return t("orders.orderCreated");
     const changed = (a.changed_fields ?? {}) as Record<string, unknown>;
@@ -1115,7 +1130,21 @@ function OrderDetailPage() {
         title={order.order_number}
         subtitle={t("orders.createdAt", { date: formatDateTime(order.created_at) })}
       >
-        <StageBadge stage={order.stage} t={t} />
+        <div className="flex flex-wrap items-center gap-2">
+          {canSeeCommercial && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={reprintServiceOrder}
+              disabled={isReprinting || budgetPending}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              {isReprinting ? t("orders.generatingPdf") : t("orders.reprintServiceOrder")}
+            </Button>
+          )}
+          <StageBadge stage={order.stage} t={t} />
+        </div>
       </PageHeader>
 
       {/* Progress stepper */}
