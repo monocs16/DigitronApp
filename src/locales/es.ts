@@ -380,6 +380,7 @@ export default {
     deleteConfirm: "¿Eliminar a {{name}}?",
     deleteDescription: "Esta acción no se puede deshacer.",
     empty: "No hay usuarios registrados.",
+    loadError: "No se pudo cargar la lista de usuarios",
   },
   settings: {
     title: "Configuración",

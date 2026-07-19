@@ -1,13 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { APP_ROLES, type AppRole } from "@/lib/digitron";
 
-function getAdmin() {
-  const url = process.env.SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+function requiredServerEnv(name: "SUPABASE_URL" | "SUPABASE_SERVICE_ROLE_KEY"): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`User management is not configured on the server. Missing: ${name}.`);
+  return value;
+}
+
+function getAdmin(): SupabaseClient<Database> {
+  const url = requiredServerEnv("SUPABASE_URL");
+  const key = requiredServerEnv("SUPABASE_SERVICE_ROLE_KEY");
   return createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -15,13 +21,16 @@ function getAdmin() {
 
 const roleSchema = z.enum(APP_ROLES);
 
-async function assertSuper(supabase: ReturnType<typeof getAdmin>, userId: string) {
-  const { data } = await supabase
+async function assertSuper(supabase: SupabaseClient<Database>, userId: string) {
+  const { data, error } = await supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
     .eq("role", "super")
     .maybeSingle();
+  if (error) {
+    throw new Error(`Could not verify user-management permissions: ${error.message}`);
+  }
   if (!data) {
     throw new Error("Only super users can manage users.");
   }
@@ -66,7 +75,7 @@ export const listUsers = createServerFn({ method: "GET" })
   });
 
 /** Replace the user's role with a single role row. */
-async function setUserRole(supabase: ReturnType<typeof getAdmin>, userId: string, role: AppRole) {
+async function setUserRole(supabase: SupabaseClient<Database>, userId: string, role: AppRole) {
   const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
   if (delErr) throw new Error(delErr.message);
   const { error: insErr } = await supabase.from("user_roles").insert({ user_id: userId, role });
