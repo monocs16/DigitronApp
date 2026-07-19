@@ -87,11 +87,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Vercel CLI
-        run: pnpm add -g vercel@54.14.5
-
       - name: Pull Vercel production env vars
-        run: vercel env pull .env.production.local --environment=production --yes
+        run: pnpm dlx vercel@54.14.5 env pull .env.production.local --environment=production --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -106,7 +103,7 @@ jobs:
       - name: Deploy to Vercel
         id: deploy
         run: |
-          url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          url=$(pnpm dlx vercel@54.14.5 deploy --prebuilt --prod --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
