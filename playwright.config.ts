@@ -26,7 +26,7 @@ export default defineConfig({
   workers: isCI ? 1 : undefined,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : "list",
   webServer: {
-    command: `CF_WORKERS=0 pnpm exec vite --mode e2e --port ${PORT} --strictPort`,
+    command: "CF_WORKERS=0 bash scripts/e2e-web-server.sh",
     url: BASE_URL,
     reuseExistingServer: !isCI,
     timeout: 120_000,
