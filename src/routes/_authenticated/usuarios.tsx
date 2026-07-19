@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { AlertCircle } from "lucide-react";
 import { listUsers, createUser, updateUserRole, deleteUser } from "@/lib/users.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/page-header";
 import { AsyncCardBody } from "@/components/async-card-body";
 import { DeleteConfirmButton } from "@/components/delete-confirm-button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsersPage,
@@ -61,7 +63,13 @@ function UsersPage() {
   const updRole = useServerFn(updateUserRole);
   const del = useServerFn(deleteUser);
 
-  const { data: users, isLoading } = useQuery({
+  const {
+    data: users,
+    error: usersError,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["users"],
     queryFn: () => list(),
     enabled: hasRole("super"),
@@ -201,59 +209,78 @@ function UsersPage() {
           <CardTitle className="text-base">{t("users.existing")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <AsyncCardBody
-            isLoading={isLoading}
-            isEmpty={(users ?? []).length === 0}
-            emptyMessage={t("users.empty")}
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("common.name")}</TableHead>
-                  <TableHead>{t("users.email")}</TableHead>
-                  <TableHead>{t("users.role")}</TableHead>
-                  <TableHead className="w-12" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(users ?? []).map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell>{u.full_name}</TableCell>
-                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                    <TableCell>
-                      <Select
-                        value={u.role ?? undefined}
-                        onValueChange={(v) =>
-                          roleMut.mutate({
-                            user_id: u.id,
-                            role: v as AppRole,
-                          })
-                        }
-                      >
-                        <SelectTrigger className="w-44">
-                          <SelectValue placeholder={t("common.select")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {APP_ROLES.map((r) => (
-                            <SelectItem key={r} value={r}>
-                              {getRoleLabel(r, t)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <DeleteConfirmButton
-                        title={t("users.deleteConfirm", { name: u.full_name })}
-                        description={t("users.deleteDescription")}
-                        onConfirm={() => delMut.mutate(u.id)}
-                      />
-                    </TableCell>
+          {usersError ? (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle>{t("users.loadError")}</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>{usersError.message}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isFetching}
+                  onClick={() => void refetch()}
+                >
+                  {t("common.retry")}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <AsyncCardBody
+              isLoading={isLoading}
+              isEmpty={(users ?? []).length === 0}
+              emptyMessage={t("users.empty")}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("common.name")}</TableHead>
+                    <TableHead>{t("users.email")}</TableHead>
+                    <TableHead>{t("users.role")}</TableHead>
+                    <TableHead className="w-12" />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </AsyncCardBody>
+                </TableHeader>
+                <TableBody>
+                  {(users ?? []).map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell>{u.full_name}</TableCell>
+                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                      <TableCell>
+                        <Select
+                          value={u.role ?? undefined}
+                          onValueChange={(v) =>
+                            roleMut.mutate({
+                              user_id: u.id,
+                              role: v as AppRole,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-44">
+                            <SelectValue placeholder={t("common.select")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {APP_ROLES.map((r) => (
+                              <SelectItem key={r} value={r}>
+                                {getRoleLabel(r, t)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <DeleteConfirmButton
+                          title={t("users.deleteConfirm", { name: u.full_name })}
+                          description={t("users.deleteDescription")}
+                          onConfirm={() => delMut.mutate(u.id)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </AsyncCardBody>
+          )}
         </CardContent>
       </Card>
     </div>
