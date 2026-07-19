@@ -82,40 +82,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Pull Vercel production env vars
-        run: pnpm dlx vercel@54.14.5 env pull .env.production.local --environment=production --yes
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Build Vercel output
-        run: pnpm run build:vercel
-        env:
-          DEPLOY_TARGET: vercel
-          NITRO_PRESET: vercel
 
       - name: Deploy to Vercel
         id: deploy
         run: |
-          set -a
-          source .env.production.local
-          set +a
-
-          : "${SUPABASE_URL:?Missing SUPABASE_URL in Vercel production environment}"
-          : "${SUPABASE_PUBLISHABLE_KEY:?Missing SUPABASE_PUBLISHABLE_KEY in Vercel production environment}"
-          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY in Vercel production environment}"
-
-          url=$(pnpm dlx vercel@54.14.5 deploy --prebuilt --prod \
-            --env "SUPABASE_URL=$SUPABASE_URL" \
-            --env "SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY" \
-            --env "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" \
-            --token="$VERCEL_TOKEN")
+          url=$(pnpm dlx vercel@54.14.5 deploy --prod --yes --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
