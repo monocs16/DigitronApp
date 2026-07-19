@@ -103,7 +103,19 @@ jobs:
       - name: Deploy to Vercel
         id: deploy
         run: |
-          url=$(pnpm dlx vercel@54.14.5 deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          set -a
+          source .env.production.local
+          set +a
+
+          : "${SUPABASE_URL:?Missing SUPABASE_URL in Vercel production environment}"
+          : "${SUPABASE_PUBLISHABLE_KEY:?Missing SUPABASE_PUBLISHABLE_KEY in Vercel production environment}"
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY in Vercel production environment}"
+
+          url=$(pnpm dlx vercel@54.14.5 deploy --prebuilt --prod \
+            --env "SUPABASE_URL=$SUPABASE_URL" \
+            --env "SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY" \
+            --env "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" \
+            --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
