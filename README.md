@@ -1,197 +1,162 @@
 # Digitron App
 
-Sistema web full-stack para la **gestión de órdenes de servicio técnico** de Digitron. Centraliza clientes, equipos, órdenes de reparación, asignación de técnicos, seguimiento de estados, evidencia fotográfica, auditoría de cambios y reportes operativos para un taller de servicio.
+Sistema web full-stack para gestionar el ciclo completo de las **órdenes de servicio técnico** de Digitron. Centraliza clientes, equipos, evaluaciones, presupuestos, reparaciones, inventario, pagos, fotografías, auditoría y reportes operativos.
 
-- **Idioma de la UI:** español
-- **Marca en pantalla:** Digitron
-- **Paquete npm:** `digitron-app`
-- **Próximo paso planificado:** empaquetado como app de escritorio con **Electron**
-
----
-
-## Tabla de contenidos
-
-- [Para quién es](#para-quién-es)
-- [Qué puedes hacer en la app](#qué-puedes-hacer-en-la-app)
-- [Características por módulo](#características-por-módulo)
-- [Roles y permisos](#roles-y-permisos)
-- [Estados de una orden](#estados-de-una-orden)
-- [Flujo de trabajo típico](#flujo-de-trabajo-típico)
-- [Modelo de datos](#modelo-de-datos)
-- [Arquitectura](#arquitectura)
-- [Stack tecnológico](#stack-tecnológico)
-- [Requisitos previos](#requisitos-previos)
-- [Instalación y puesta en marcha](#instalación-y-puesta-en-marcha)
-- [Usuarios de prueba (sin registro público)](#usuarios-de-prueba-sin-registro-público)
-- [Configuración de Supabase](#configuración-de-supabase)
-- [Variables de entorno](#variables-de-entorno)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Scripts](#scripts)
-- [Desarrollo local](#desarrollo-local)
-- [Despliegue en Cloudflare (opcional)](#despliegue-en-cloudflare-opcional)
-- [Seguridad](#seguridad)
-- [Roadmap](#roadmap)
-- [Documentación adicional](#documentación-adicional)
+- **Uso:** herramienta interna del taller; no hay autoservicio para clientes.
+- **Idioma principal de la UI:** español, con infraestructura i18n ES/EN.
+- **Marca en pantalla:** Digitron.
+- **Paquete npm:** `digitron-app`.
+- **Próximo objetivo de plataforma:** empaquetado de escritorio con Electron.
 
 ---
 
-## Para quién es
+## Funcionalidad
 
-| Perfil            | Uso principal                                                                      |
-| ----------------- | ---------------------------------------------------------------------------------- |
-| **Administrador** | Supervisión del taller, reportes, gestión de usuarios, cierre y entrega de órdenes |
-| **Técnico**       | Órdenes asignadas, avance de diagnóstico/reparación, fotos y notas en campo        |
+- Registrar clientes y equipos. El equipo es un activo independiente; la orden registra qué cliente lo presenta en cada visita.
+- Abrir órdenes con cliente, equipo, origen, falla reportada, accesorios recibidos, técnico y anticipo opcional.
+- Generar y reimprimir la orden de servicio en PDF a partir de la plantilla editable de Digitron.
+- Guiar cada orden por evaluación, presupuesto, decisión del cliente, reparación, pago, entrega y cierre.
+- Cotizar y consumir repuestos con actualización transaccional del inventario.
+- Registrar pagos sin permitir que excedan el presupuesto y condonar un saldo cuando corresponda.
+- Adjuntar fotografías privadas y mantener notas internas append-only.
+- Registrar auditoría técnica automática sobre los cambios operativos.
+- Abrir una nueva orden de garantía enlazada con una orden entregada o cerrada.
+- Consultar paneles, reportes y exportaciones PDF.
+- Administrar cuentas y roles sin registro público.
 
-No hay autoservicio para clientes finales: es una herramienta **interna del taller**.
+## Módulos
 
----
+| Ruta               | Acceso principal                                          | Función                                                                                        |
+| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `/login`           | Público                                                   | Inicio de sesión con Supabase Auth.                                                            |
+| `/dashboard`       | Administrativo, técnico, super                            | KPIs, órdenes recientes, estancadas y bandeja de acciones pendientes por rol.                  |
+| `/orders`          | Administrativo, técnico asignado, super                   | Listado y filtros por etapa, técnico, fechas, cliente y equipo.                                |
+| `/orders/new`      | Administrativo, super                                     | Alta de orden y descarga automática de la orden de servicio en PDF.                            |
+| `/orders/:orderId` | Según RLS                                                 | Flujo guiado, evaluación, presupuesto, repuestos, reparación, pagos, fotos, notas y auditoría. |
+| `/clients`         | Administrativo, super                                     | Directorio y mantenimiento de clientes.                                                        |
+| `/equipment`       | Lectura técnico; edición administrativo/super             | Activos e historial de servicio por número de serie.                                           |
+| `/inventory`       | Lectura restringida técnico; edición administrativo/super | Catálogo, existencias, costos y proveedores.                                                   |
+| `/reports`         | Administrativo, super                                     | Resúmenes por etapa, técnico y periodo; repuestos y garantías; PDF.                            |
+| `/usuarios`        | Super                                                     | Crear, cambiar rol y eliminar usuarios mediante operaciones solo servidor.                     |
+| `/configuracion`   | Usuarios autenticados                                     | Perfil, tema e idioma.                                                                         |
 
-## Qué puedes hacer en la app
-
-- Registrar **clientes** y sus **equipos** (marca, modelo, serie).
-- Abrir **órdenes de servicio** con descripción del problema y técnico asignado.
-- Mover cada orden por un **flujo de estados** controlado (recibido → diagnóstico → reparación → listo → entregado, etc.).
-- Adjuntar hasta **5 fotos** por orden (almacenamiento privado en Supabase).
-- Consultar **bitácora de auditoría** automática (quién cambió estado, técnico, costos, notas).
-- Ver **panel** con KPIs y órdenes estancadas (sin movimiento en más de 7 días).
-- Generar **reportes** en pantalla y exportar tablas a **PDF** (solo admin).
-- Gestionar **usuarios** del sistema (solo admin; no hay página de registro).
-
----
-
-## Características por módulo
-
-| Ruta               | Quién          | Qué incluye                                                                                                                               |
-| ------------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `/login`           | Todos          | Email + contraseña (Supabase Auth). Redirección al panel tras login.                                                                      |
-| `/dashboard`       | Admin, técnico | Tarjetas de resumen, órdenes recientes, alertas de órdenes sin actualizar. El técnico ve prioridad en _sus_ órdenes activas.              |
-| `/orders`          | Admin, técnico | Listado con filtros por estado y búsqueda por número/cliente.                                                                             |
-| `/orders/new`      | Admin, técnico | Alta de orden: cliente, equipo, técnico, descripción del problema. Número `ORD-YYYY-XXXX` automático.                                     |
-| `/orders/:orderId` | Admin, técnico | Detalle completo: cambio de estado (según rol), técnico, repuesto en espera, costos estimado/final, notas, fotos, historial de auditoría. |
-| `/clients`         | Admin, técnico | CRUD de clientes (nombre, teléfono, email). Borrado solo admin.                                                                           |
-| `/equipment`       | Admin, técnico | CRUD de equipos ligados a un cliente. Borrado solo admin.                                                                                 |
-| `/reports`         | Solo admin     | Distribución por estado, carga por técnico, ingresos por mes, top clientes; botones de exportación PDF.                                   |
-| `/usuarios`        | Solo admin     | Crear usuarios (email, contraseña temporal, nombre, rol), cambiar rol, eliminar. Requiere `SUPABASE_SERVICE_ROLE_KEY` en el servidor.     |
+La visibilidad de la UI mejora la experiencia, pero la autorización efectiva está en **Postgres RLS** y en las validaciones de las server functions.
 
 ---
 
 ## Roles y permisos
 
-| Acción                                    | Admin |       Técnico       |
-| ----------------------------------------- | :---: | :-----------------: |
-| Panel, listados, clientes, equipos        |  Sí   |         Sí          |
-| Crear órdenes                             |  Sí   |         Sí          |
-| Editar órdenes asignadas a otro técnico   |  Sí   | No (solo las suyas) |
-| Estados de taller (`diagnosis` … `ready`) |  Sí   | Sí, en sus órdenes  |
-| `delivered`, `closed`, `warranty`         |  Sí   |         No          |
-| Reportes y PDF                            |  Sí   |         No          |
-| Usuarios (`/usuarios`)                    |  Sí   |         No          |
-| Eliminar clientes / equipos               |  Sí   |         No          |
+Los roles vigentes son `cliente`, `administrativo`, `tecnico` y `super`. Se almacenan en `user_roles`, no en `profiles`.
 
-La autorización real está en **Postgres (RLS)** con `auth.uid()` y la función `has_role()`. La UI y las server functions son una capa adicional.
+| Módulo           | Cliente  | Administrativo | Técnico              | Super        |
+| ---------------- | -------- | -------------- | -------------------- | ------------ |
+| Público          | Consulta | Consulta       | Consulta             | Consulta     |
+| Clientes         | —        | Modificación   | —                    | Modificación |
+| Equipo           | —        | Modificación   | Consulta             | Modificación |
+| Reportes         | —        | Consulta       | —                    | Consulta     |
+| Inventario       | —        | Modificación   | Consulta restringida | Modificación |
+| OS · Apertura    | —        | Ingreso        | —                    | Modificación |
+| OS · Evaluación  | —        | Consulta       | Ingreso en asignadas | Modificación |
+| OS · Presupuesto | —        | Ingreso        | —                    | Modificación |
+| OS · Reparación  | —        | Consulta       | Ingreso en asignadas | Modificación |
+| OS · Cierre      | —        | Ingreso        | —                    | Modificación |
+| Tablero          | —        | Consulta       | Consulta             | Consulta     |
+| Seguridad        | —        | Consulta       | —                    | Modificación |
+
+La matriz ejecutable está en [`src/lib/access.ts`](./src/lib/access.ts) y las políticas en [`supabase/migrations/`](./supabase/migrations/).
 
 ---
 
-## Estados de una orden
+## Flujo de una orden
 
-Valores en base de datos (`order_status`) y etiquetas en español ([`src/lib/digitron.ts`](./src/lib/digitron.ts)):
+El enum `order_stage` define estas etapas:
 
-| Estado (DB)    | Etiqueta en UI        |
-| -------------- | --------------------- |
-| `received`     | Recibido              |
-| `diagnosis`    | En diagnóstico        |
-| `repair`       | En reparación         |
-| `waiting_part` | En espera de repuesto |
-| `ready`        | Listo para entrega    |
-| `delivered`    | Entregado             |
-| `closed`       | Cerrado               |
-| `warranty`     | Garantía              |
+| Etapa               | Etiqueta             | Responsable de completar la acción |
+| ------------------- | -------------------- | ---------------------------------- |
+| `intake`            | Recepción            | Administrativo                     |
+| `evaluation`        | Evaluación técnica   | Técnico asignado                   |
+| `budget`            | Presupuesto          | Administrativo                     |
+| `customer_decision` | Decisión del cliente | Administrativo                     |
+| `on_hold`           | En espera            | Espera de repuesto o autorización  |
+| `repair`            | Reparación           | Técnico asignado                   |
+| `payment`           | Pago                 | Administrativo                     |
+| `delivered`         | Entregado            | Administrativo                     |
+| `closed`            | Cerrado              | Administrativo                     |
 
 ```mermaid
 stateDiagram-v2
   direction LR
-  received --> diagnosis
-  diagnosis --> repair
-  diagnosis --> waiting_part
-  diagnosis --> ready
-  repair --> waiting_part
-  repair --> ready
-  waiting_part --> repair
-  waiting_part --> ready
-  ready --> delivered
+  intake --> evaluation
+  evaluation --> budget
+  budget --> customer_decision
+  customer_decision --> repair: aprobado
+  customer_decision --> on_hold: diferido
+  customer_decision --> closed: rechazado
+  on_hold --> customer_decision
+  repair --> payment
+  payment --> delivered
   delivered --> closed
-  delivered --> warranty
-  warranty --> repair
-  warranty --> closed
 ```
 
-Las transiciones permitidas desde la app están en [`src/lib/state-machine.ts`](./src/lib/state-machine.ts) (además de las políticas RLS en Postgres).
+En la implementación actual, el formulario de alta completa la recepción y crea la orden directamente en `evaluation`. `intake` se conserva en el modelo y en la máquina de estados para representar el inicio formal del proceso.
 
----
+Reglas principales:
 
-## Flujo de trabajo típico
+- El técnico solo actúa sobre órdenes asignadas.
+- Solo se entra a `repair` con un presupuesto aprobado.
+- Una decisión diferida requiere motivo y mueve la orden a `on_hold`.
+- Una decisión rechazada cierra la orden sin reparación.
+- Solo se entrega con saldo pagado o expresamente condonado.
+- Las correcciones hacia atrás son limitadas y requieren una nota con el motivo.
+- Una garantía crea otra orden enlazada mediante `warranty_origin_id`; no es una etapa del enum.
+- “Notificar al cliente” registra un timestamp auditado. El envío real de email todavía no está implementado.
 
-1. **Recepción** — Admin o técnico crea cliente/equipo si no existen y abre una orden en estado _Recibido_.
-2. **Asignación** — Se asigna técnico; la orden pasa a _En diagnóstico_ (técnico en sus órdenes).
-3. **Taller** — El técnico actualiza a _En reparación_, _En espera de repuesto_ o _Listo para entrega_, sube fotos y anota costos.
-4. **Cierre operativo** — Admin marca _Entregado_ y luego _Cerrado_ (o _Garantía_ si aplica).
-5. **Supervisión** — Admin revisa `/dashboard` y `/reports`; la bitácora en el detalle de la orden registra cada cambio relevante.
+La fuente canónica del proceso es [`docs/service-order-flow.md`](./docs/service-order-flow.md); las reglas ejecutables están en [`src/lib/state-machine.ts`](./src/lib/state-machine.ts) y [`src/lib/orders.functions.ts`](./src/lib/orders.functions.ts).
 
 ---
 
 ## Modelo de datos
 
-Relaciones principales (esquema `public`):
-
 ```mermaid
 erDiagram
-  profiles ||--o{ orders : "technician_id"
-  clients ||--o{ equipment : "client_id"
-  clients ||--o{ orders : "client_id"
-  equipment ||--o{ orders : "equipment_id"
-  orders ||--o{ order_photos : "order_id"
-  orders ||--o{ audit_log : "order_id"
-  profiles {
-    uuid id PK
-    text full_name
-    app_role role
-  }
-  clients {
-    uuid id PK
-    text name
-    text phone
-    text email
-  }
-  equipment {
-    uuid id PK
-    uuid client_id FK
-    text type brand model
-    text serial_number
-  }
-  orders {
-    uuid id PK
-    text order_number UK
-    uuid client_id FK
-    uuid equipment_id FK
-    uuid technician_id FK
-    order_status status
-    text problem_description
-    numeric estimated_cost final_cost
-  }
+  auth_users ||--|| profiles : has
+  auth_users ||--o{ user_roles : has
+  profiles ||--o{ orders : assigned
+  customers ||--o{ orders : requests
+  equipment ||--o{ orders : serviced_in
+  orders ||--o| technical_evaluations : has
+  orders ||--o| budgets : has
+  orders ||--o| repairs : has
+  orders ||--o{ order_parts : includes
+  parts ||--o{ order_parts : referenced_by
+  orders ||--o{ payments : receives
+  orders ||--o{ order_photos : documents
+  orders ||--o{ order_notes : logs
+  orders ||--o{ orders : warranty_origin
 ```
 
-| Tabla          | Descripción                                                                   |
-| -------------- | ----------------------------------------------------------------------------- |
-| `profiles`     | Perfil por usuario Auth (`id` = `auth.users.id`). Rol `admin` o `technician`. |
-| `clients`      | Clientes del taller.                                                          |
-| `equipment`    | Equipos; cada fila pertenece a un cliente.                                    |
-| `orders`       | Orden de servicio; número generado por trigger `generate_order_number`.       |
-| `order_photos` | Metadatos de fotos; archivo en bucket Storage `order-photos`.                 |
-| `audit_log`    | Historial; inserts vía trigger `log_order_changes` en `orders`.               |
+| Tabla                   | Descripción                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `profiles`              | Perfil del usuario Auth: nombre, email y estado activo.                        |
+| `user_roles`            | Roles `cliente`, `administrativo`, `tecnico` y `super`.                        |
+| `customers`             | Cliente y datos de contacto; identificación opcional pero única si se informa. |
+| `equipment`             | Activo independiente; serie opcional pero única si se informa.                 |
+| `orders`                | Agregado principal del servicio, cliente/equipo de la visita, etapa y entrega. |
+| `technical_evaluations` | Diagnóstico y observaciones del técnico.                                       |
+| `budgets`               | Presupuesto único por orden, anticipo y decisión del cliente.                  |
+| `parts`                 | Inventario comercial de repuestos.                                             |
+| `order_parts`           | Repuestos cotizados o usados, con snapshots de costo y disponibilidad.         |
+| `repairs`               | Trabajo realizado, técnico y estado de reparación.                             |
+| `payments`              | Pagos registrados para la orden.                                               |
+| `order_photos`          | Metadatos de archivos privados en Storage.                                     |
+| `order_notes`           | Bitácora humana interna append-only.                                           |
+| `audit_log`             | Auditoría técnica generada por triggers.                                       |
 
-Migraciones versionadas en [`supabase/migrations/`](./supabase/migrations/). Guía de aplicación: [`supabase/README.md`](./supabase/README.md).
+Los técnicos consultan inventario mediante las vistas restringidas `parts_technician` y `order_parts_technician`; costos, stock y proveedor permanecen protegidos.
 
-Carpeta **`supabase/.temp/`** (gitignored): caché local del CLI tras `supabase link` (project ref, versiones). No se commitea.
+### Numeración
+
+`generate_order_number()` continúa la numeración histórica de Digitron. Si una importación no proporciona el número, asigna el siguiente valor numérico posterior al mayor existente, con piso en `47719`. Un advisory lock evita duplicados por concurrencia.
 
 ---
 
@@ -199,343 +164,273 @@ Carpeta **`supabase/.temp/`** (gitignored): caché local del CLI tras `supabase 
 
 ```mermaid
 flowchart TB
-  subgraph browser [Navegador]
+  subgraph Browser[Navegador]
     UI[React 19 + TanStack Router]
-    RQ[TanStack Query]
-    SB[Supabase JS - anon + JWT]
-    UI --> RQ --> SB
+    Query[TanStack Query]
+    BrowserSB[Supabase JS: publishable key + JWT]
+    UI --> Query --> BrowserSB
   end
 
-  subgraph app_server [TanStack Start]
-    SSR[SSR + rutas]
-    SF[createServerFn]
-    SF --> AuthMW[requireSupabaseAuth]
-    SF --> Admin[users.functions - service role]
+  subgraph App[TanStack Start]
+    SSR[SSR y rutas]
+    Fn[createServerFn]
+    AuthMW[requireSupabaseAuth]
+    Admin[Service role solo servidor]
+    Fn --> AuthMW
+    Fn --> Admin
   end
 
-  subgraph cloud [Supabase]
-    PG[(Postgres + RLS)]
+  subgraph Supabase[Supabase]
     Auth[Auth]
-    St[Storage]
+    DB[(Postgres + RLS)]
+    Storage[Storage privado]
   end
 
-  browser --> SSR
-  SB --> Auth
-  SB --> PG
-  SB --> St
-  AuthMW --> PG
-  Admin --> PG
+  Browser --> SSR
+  BrowserSB --> Auth
+  BrowserSB --> DB
+  BrowserSB --> Storage
+  AuthMW --> DB
+  Admin --> Auth
+  Admin --> DB
 ```
 
-Puntos clave:
+- Las consultas habituales usan repositorios en `src/lib/repositories/` y el cliente Supabase del navegador; RLS aplica el alcance real.
+- Las transiciones y operaciones sensibles usan `createServerFn` con `requireSupabaseAuth`.
+- La gestión de usuarios usa `SUPABASE_SERVICE_ROLE_KEY` exclusivamente dentro de handlers de servidor.
+- No se usan Supabase Edge Functions para la lógica interna.
+- Producción soporta Cloudflare Workers y, alternativamente, Vercel mediante Nitro.
 
-- **Monorepo full-stack:** UI y server functions en TypeScript compartido.
-- **Lecturas/escrituras habituales:** cliente Supabase en el navegador; RLS filtra por usuario.
-- **Operaciones privilegiadas:** p. ej. crear usuarios Auth → [`src/lib/users.functions.ts`](./src/lib/users.functions.ts) con `SUPABASE_SERVICE_ROLE_KEY` solo en servidor.
-- **Sin Edge Functions** de Supabase para lógica de negocio interna.
-- **Producción opcional:** build con plugin Cloudflare → Worker ([`src/server.ts`](./src/server.ts), [`wrangler.jsonc`](./wrangler.jsonc)).
+## Stack
 
-Convenciones de código: [`ENGINEERING.md`](./ENGINEERING.md). Guía para agentes IA: [`AGENTS.md`](./AGENTS.md).
-
----
-
-## Stack tecnológico
-
-| Capa                  | Tecnología                                                    |
-| --------------------- | ------------------------------------------------------------- |
-| Framework             | [TanStack Start](https://tanstack.com/start) + Vite 7         |
-| Routing               | [TanStack Router](https://tanstack.com/router) (file-based)   |
-| Datos en cliente      | [TanStack Query](https://tanstack.com/query)                  |
-| UI                    | React 19, Tailwind CSS v4, [shadcn/ui](https://ui.shadcn.com) |
-| Backend / API interna | TanStack `createServerFn`                                     |
-| Base de datos         | Supabase Postgres + **RLS**                                   |
-| Auth                  | Supabase Auth (email/password)                                |
-| Archivos              | Supabase Storage (`order-photos`)                             |
-| Formularios           | React Hook Form + Zod                                         |
-| PDF                   | jsPDF + jspdf-autotable                                       |
-| Deploy (opcional)     | Cloudflare Workers o Vercel                                     |
-| Runtime local         | Node **≥ 20.19** / **≥ 22.12** + [pnpm](https://pnpm.io)       |
+| Capa            | Tecnología                                     |
+| --------------- | ---------------------------------------------- |
+| Framework       | TanStack Start, React 19, Vite 7               |
+| Routing y datos | TanStack Router + TanStack Query               |
+| UI              | Tailwind CSS v4, shadcn/ui, Radix UI, Recharts |
+| Formularios     | React Hook Form + Zod                          |
+| Backend interno | TanStack `createServerFn`                      |
+| Datos           | Supabase Postgres + RLS                        |
+| Auth y archivos | Supabase Auth + Storage privado                |
+| PDF             | `pdf-lib`, jsPDF y jspdf-autotable             |
+| i18n            | i18next + react-i18next                        |
+| Testing         | Vitest + Playwright                            |
+| Deploy          | Cloudflare Workers o Vercel/Nitro              |
 
 ---
 
-## Requisitos previos
+## Requisitos
 
-Checklist antes de desarrollar:
+- Node **>=20.19** o **>=22.12** (`.nvmrc` usa Node 22).
+- pnpm **>=11**.
+- Supabase CLI y Docker para el stack local y las pruebas E2E.
+- Un proyecto Supabase para trabajar contra un entorno remoto.
 
-- [ ] Node **≥ 20.19** / **≥ 22.12** ([`.nvmrc`](./.nvmrc) → 22) y [pnpm](https://pnpm.io) (`corepack enable && corepack prepare`)
-- [ ] Proyecto en [Supabase](https://supabase.com) creado
-- [ ] [Supabase CLI](https://supabase.com/docs/guides/cli) (`brew install supabase/tap/supabase` en Mac ARM: `arch -arm64 brew install supabase/tap/supabase`)
-- [ ] Migraciones aplicadas (`supabase db push`)
-- [ ] `.env.local` con URL, anon key y service role (ver abajo)
-- [ ] Al menos un usuario **admin** para entrar a la app
+## Inicio rápido local
 
----
-
-## Instalación y puesta en marcha
-
-### 1. Clonar e instalar dependencias
+La forma recomendada para desarrollar sin tocar un proyecto remoto es:
 
 ```bash
-git clone https://github.com/TU_ORG/digitron-app.git
-cd digitron-app
 pnpm install
+pnpm run dev:local
 ```
 
-### 2. Variables de entorno
+Este script:
+
+1. Inicia Supabase local si hace falta.
+2. Aplica migraciones pendientes.
+3. Crea o asegura un superusuario local.
+4. Inyecta las credenciales locales en Vite.
+5. Inicia la app en `http://localhost:5173`.
+
+Credenciales predeterminadas de desarrollo local:
+
+```text
+admin@digitron.test / digitron123
+```
+
+Pueden reemplazarse con `ADMIN_EMAIL`, `ADMIN_PASSWORD` y `ADMIN_NAME`. Para reiniciar la base local y aplicar todo desde cero:
+
+```bash
+pnpm run dev:local:fresh
+```
+
+> Los scripts locales usan el stack Supabase local y no deben apuntar a producción.
+
+## Configuración remota
 
 ```bash
 cp .env.example .env.local
-```
-
-Edita `.env.local` con las claves de **Project Settings → API** en Supabase. Detalle en [Variables de entorno](#variables-de-entorno).
-
-> Usa `.env.local` en desarrollo. No commitees `.env` ni `.env.local`.
-
-### 3. Base de datos
-
-```bash
 supabase login
 supabase link --project-ref TU_PROJECT_REF
 supabase db push
-```
-
-### 4. Arrancar la app
-
-```bash
 pnpm run dev
 ```
 
-Debes ver:
+El `project_id` de `supabase/config.toml` es un placeholder. `supabase link` guarda la referencia real en `supabase/.temp/`, que está ignorado por Git.
 
-```text
-➜  Local:   http://localhost:5173/
-```
+### Variables de entorno
 
-Abre esa URL. Si no aparece el puerto, revisa [Desarrollo local → Problemas frecuentes](#problemas-frecuentes).
+| Variable                        | Alcance       | Uso                                                           |
+| ------------------------------- | ------------- | ------------------------------------------------------------- |
+| `VITE_SUPABASE_URL`             | Navegador     | URL de Supabase.                                              |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Navegador     | Clave anon/publishable protegida por RLS.                     |
+| `SUPABASE_URL`                  | Servidor      | URL usada por SSR y server functions.                         |
+| `SUPABASE_PUBLISHABLE_KEY`      | Servidor      | Cliente autenticado que respeta RLS.                          |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Solo servidor | Gestión privilegiada de usuarios; nunca usar prefijo `VITE_`. |
 
-### 5. Primer login
+No se incluyen valores de ejemplo que parezcan credenciales. La plantilla vacía está en [`.env.example`](./.env.example).
 
-Crea un usuario admin (siguiente sección) e inicia sesión en `/login`.
+## Primer usuario y gestión de cuentas
 
----
+No existe registro público.
 
-## Usuarios de prueba (sin registro público)
+- En una base vacía, `handle_new_user()` asigna `super` al primer usuario y `tecnico` a los siguientes.
+- En local, `pnpm run dev:local` o `pnpm run seed:admin` prepara el superusuario.
+- En un proyecto remoto, cree el primer usuario en Supabase Auth con email confirmado; el trigger crea `profiles` y `user_roles`.
+- Un `super` puede administrar usuarios desde `/usuarios`. Esto requiere `SUPABASE_SERVICE_ROLE_KEY` en el servidor.
+- Para corregir manualmente un rol, modifique `user_roles`, nunca agregue un campo de rol a `profiles`.
 
-**No existe pantalla de registro.** Solo login. Los usuarios se crean así:
-
-### A. Primer admin (base de datos vacía)
-
-1. Supabase Dashboard → **Authentication** → **Users** → **Add user**.
-2. Email, contraseña (mín. 6 caracteres), activar **Auto Confirm User**.
-3. Si `profiles` estaba vacío, el trigger `handle_new_user` asigna **`admin`** al primer usuario.
-4. Login en `http://localhost:5173/login`.
-
-### B. Desde la app (ya con un admin)
-
-1. Confirma `SUPABASE_SERVICE_ROLE_KEY` en `.env.local`.
-2. Entra como admin → menú **Usuarios** (`/usuarios`).
-3. Completa email, contraseña, nombre y rol (`admin` o `technician`).
-4. Entrega la contraseña al usuario por un canal seguro (no hay email automático de invitación en esta versión).
-
-### C. Promover o corregir rol en SQL
+Ejemplo administrativo, sustituyendo los valores:
 
 ```sql
--- Sustituye UUID_DEL_USUARIO por el id de Authentication → Users
-UPDATE public.profiles
-SET role = 'admin', full_name = 'Admin de prueba'
-WHERE id = 'UUID_DEL_USUARIO';
+DELETE FROM public.user_roles WHERE user_id = 'UUID_DEL_USUARIO';
+INSERT INTO public.user_roles (user_id, role)
+VALUES ('UUID_DEL_USUARIO', 'super');
 ```
-
-### Ejemplo solo para desarrollo local
-
-| Campo    | Valor sugerido                               |
-| -------- | -------------------------------------------- |
-| Email    | `admin@test.com`                             |
-| Password | `admin123` (o más fuerte en entornos reales) |
-| Rol      | `admin` (automático si es el primer perfil)  |
-
-Para un técnico de prueba, créalo en `/usuarios` con rol **Técnico** o usa el mismo flujo en el dashboard de Auth y deja `role = 'technician'` en `profiles`.
 
 ---
 
-## Configuración de Supabase
+## Estructura
 
-### Enlazar el proyecto local
-
-El `project_id` en [`supabase/config.toml`](./supabase/config.toml) es un placeholder. El CLI guarda el proyecto real en `supabase/.temp/` al hacer:
-
-```bash
-supabase link --project-ref TU_PROJECT_REF
-```
-
-(`TU_PROJECT_REF` aparece en la URL del dashboard: `https://supabase.com/dashboard/project/<ref>`.)
-
-### Verificar después de `db push`
-
-En el dashboard deberías tener:
-
-- Tablas: `profiles`, `clients`, `equipment`, `orders`, `order_photos`, `audit_log`
-- Bucket **order-photos** (privado, imágenes JPEG/PNG/WebP, límite 5 MB por archivo)
-- RLS **enabled** en tablas de `public`
-
-### Orden de migraciones
-
-1. `20260516231057_…sql` — esquema, enums, RLS, triggers de número de orden y auditoría
-2. `20260516231116_…sql` — endurecimiento `search_path` y grants en funciones
-3. `20260517134255_…sql` — trigger en `auth.users`, políticas de Storage
-
-Detalle: [`supabase/README.md`](./supabase/README.md).
-
----
-
-## Variables de entorno
-
-| Variable                        | Dónde                | Descripción                                                   |
-| ------------------------------- | -------------------- | ------------------------------------------------------------- |
-| `VITE_SUPABASE_URL`             | Cliente (build Vite) | URL del proyecto                                              |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Cliente              | Clave **anon** (segura en el navegador con RLS)               |
-| `SUPABASE_URL`                  | Servidor             | Misma URL                                                     |
-| `SUPABASE_PUBLISHABLE_KEY`      | Servidor             | Misma anon key (middleware SSR / server functions con sesión) |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Servidor **solo**    | Admin Auth y bypass RLS — **nunca** `VITE_*`                  |
-
-Ejemplo `.env.local`:
-
-```env
-VITE_SUPABASE_URL=https://xxxxxxxx.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-SUPABASE_URL=https://xxxxxxxx.supabase.co
-SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-Plantilla vacía: [`.env.example`](./.env.example).
-
----
-
-## Estructura del proyecto
-
-```
+```text
 digitron-app/
 ├── src/
-│   ├── routes/                    # Páginas (TanStack Router)
-│   │   ├── __root.tsx             # HTML shell, tema, meta
-│   │   ├── login.tsx
-│   │   └── _authenticated/        # Rutas tras login
+│   ├── routes/                     # Rutas file-based
+│   ├── components/                 # Componentes de aplicación y UI
+│   ├── hooks/                      # Auth, tema, idioma y datos compartidos
 │   ├── lib/
-│   │   ├── digitron.ts            # Labels ES, enums de estado
-│   │   ├── state-machine.ts       # Transiciones por rol
-│   │   └── users.functions.ts     # CRUD usuarios (server)
-│   ├── integrations/supabase/     # Cliente, auth middleware, types
-│   ├── components/                # UI + app-sidebar
-│   ├── hooks/                     # useAuth, useTheme, …
-│   ├── start.ts                   # Middleware global Start
-│   └── server.ts                  # Entry Worker (producción CF)
+│   │   ├── repositories/           # Acceso normal a Supabase bajo RLS
+│   │   ├── *.functions.ts          # Operaciones sensibles en servidor
+│   │   ├── access.ts               # Matriz de permisos
+│   │   ├── digitron.ts             # Roles, etapas y decisiones
+│   │   ├── state-machine.ts        # Transiciones y gates
+│   │   └── service-order-pdf.ts    # Orden de servicio PDF
+│   ├── integrations/supabase/      # Clientes, auth middleware y tipos
+│   ├── locales/                    # Traducciones ES/EN
+│   ├── start.ts                    # Middleware global
+│   └── server.ts                   # Entry del Worker
 ├── supabase/
-│   ├── migrations/                # SQL versionado
-│   ├── config.toml
-│   └── .temp/                     # CLI local (gitignored)
-├── vite.config.ts                 # CF_WORKERS=0 en dev por defecto
-├── wrangler.jsonc
-├── AGENTS.md
+│   ├── migrations/                 # Esquema, RLS, triggers y Storage
+│   ├── seed.sql
+│   └── config.toml
+├── docs/                            # Modelo, flujo y contratos
+├── e2e/                             # Playwright + fixtures locales
+├── scripts/                         # Desarrollo, seeds e importación
+├── public/                          # Assets y plantilla PDF
 ├── ENGINEERING.md
-└── package.json
+└── AGENTS.md
 ```
 
-**No editar** `src/routeTree.gen.ts` (generado por el plugin del router).
-
----
+No edite `src/routeTree.gen.ts`: lo genera el plugin de TanStack Router.
 
 ## Scripts
 
-| Comando             | Uso                                                                           |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `pnpm run dev`       | Desarrollo en **http://localhost:5173** (`CF_WORKERS=0`, sin runtime Workers) |
-| `pnpm run dev:cf`    | Dev con runtime Cloudflare (más lento; probar paridad con producción)         |
-| `pnpm run build`     | Build producción (`dist/`, con Cloudflare)                                    |
-| `pnpm run build:vercel` | Build para Vercel (`.vercel/output/`)                                    |
-| `pnpm run build:dev` | Build modo development                                                        |
-| `pnpm run preview`   | Servir el build localmente                                                    |
-| `pnpm run lint`      | ESLint                                                                        |
-| `pnpm run format`    | Prettier en el repo                                                           |
+| Comando                    | Uso                                                      |
+| -------------------------- | -------------------------------------------------------- |
+| `pnpm run dev`             | Vite en `http://localhost:5173`, sin runtime Cloudflare. |
+| `pnpm run dev:local`       | Supabase local + migraciones + superusuario + Vite.      |
+| `pnpm run dev:local:fresh` | Igual, reiniciando la base local.                        |
+| `pnpm run dev:cf`          | Desarrollo con runtime Cloudflare.                       |
+| `pnpm run build`           | Build de producción para Cloudflare.                     |
+| `pnpm run build:vercel`    | Build alternativo para Vercel/Nitro.                     |
+| `pnpm run preview`         | Preview del build Cloudflare.                            |
+| `pnpm run typecheck`       | TypeScript sin emitir archivos.                          |
+| `pnpm run lint`            | ESLint.                                                  |
+| `pnpm run test:unit`       | Pruebas Vitest.                                          |
+| `pnpm run test:coverage`   | Vitest con cobertura.                                    |
+| `pnpm run test:e2e`        | Playwright contra Supabase local.                        |
+| `pnpm run ci:check`        | Typecheck, lint, audit y cobertura.                      |
+| `pnpm run format`          | Prettier en el repositorio.                              |
+| `pnpm run supabase:start`  | Inicia el stack local.                                   |
+| `pnpm run supabase:reset`  | Reinicia la base y crea el superusuario.                 |
+| `pnpm run seed:demo`       | Agrega datos de demostración al stack local.             |
 
----
+## Verificación
 
-## Desarrollo local
-
-### Por qué `pnpm run dev` y no solo `vite dev`
-
-- El plugin **Cloudflare** en dev puede colgar el arranque y no exponer puerto.
-- `vite.config.ts` desactiva Cloudflare cuando `CF_WORKERS=0` (valor por defecto del script `dev`).
-- `build` / `preview` sí activan Cloudflare (`CF_WORKERS=1`).
-
-### Convenciones al contribuir
-
-- Navegación interna: `<Link>` / `useNavigate` de `@tanstack/react-router`.
-- Lógica con datos sensibles: `createServerFn` + `requireSupabaseAuth` en `src/lib/*.functions.ts`.
-- Cambios de esquema: nueva migración en `supabase/migrations/`, luego `supabase db push`.
-- Estilos: tokens en [`src/styles.css`](./src/styles.css); evitar `text-white` / hex sueltos en componentes.
-
-### Electron (futuro)
+Antes de cerrar un cambio:
 
 ```bash
-ELECTRON=true pnpm run build
+pnpm run typecheck
+pnpm run lint
+pnpm run test:unit
 ```
 
-(`base: './'` en Vite para cargar desde `file://`.)
+Para cambios de flujo, autenticación, RLS o rutas críticas, ejecute además:
 
-### Problemas frecuentes
+```bash
+pnpm run test:e2e
+```
 
-| Síntoma                                    | Qué hacer                                                                                                                       |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| No aparece `Local: http://localhost:5173/` | Usa `pnpm run dev` (no `vite dev` a mano). No uses `dev:cf` salvo que pruebes Workers.                                           |
-| `lightningcss.darwin-x64.node` not found   | Node bajo Rosetta (x64) con deps ARM. Instala Node 22 **arm64** (`nvm install 22` en terminal sin Rosetta). |
-| Missing Supabase environment variables     | Crea `.env.local` desde `.env.example`.                                                                                         |
-| 401 en server functions                    | Usuario no logueado o llamada desde loader público sin Bearer.                                                                  |
-| `/usuarios` falla al crear usuario         | Falta `SUPABASE_SERVICE_ROLE_KEY` en `.env.local`.                                                                              |
-| `brew install supabase` falla en Mac ARM   | `arch -arm64 brew install supabase/tap/supabase`                                                                                |
-| Build falla por versión de Node            | `nvm use` → Node 22, luego `pnpm run build`                                                                                    |
+Playwright inicia y reinicia un Supabase local, aplica migraciones, crea usuarios aislados y no utiliza producción.
 
 ---
 
-## Despliegue en Cloudflare (opcional)
+## Despliegue
 
-1. Variables en Cloudflare Workers / build: mismas `SUPABASE_*`; las `VITE_*` se embeben en el cliente en build time.
-2. `pnpm run build`
-3. Despliegue con [Wrangler](https://developers.cloudflare.com/workers/wrangler/) según la [guía TanStack Start + Cloudflare](https://developers.cloudflare.com/workers/framework-guides/web-apps/tanstack/).
+### Cloudflare Workers
 
-Entry del worker: [`src/server.ts`](./src/server.ts) (envuelve el handler de TanStack Start y páginas de error).
+```bash
+pnpm run build
+```
+
+El build activa `@cloudflare/vite-plugin`; [`src/server.ts`](./src/server.ts) envuelve el handler de TanStack Start y normaliza errores SSR. Configure las variables `SUPABASE_*` en el runtime y las `VITE_*` durante el build.
+
+### Vercel
+
+```bash
+pnpm run build:vercel
+```
+
+Este build establece `DEPLOY_TARGET=vercel`, desactiva el plugin Cloudflare y utiliza Nitro con preset Vercel.
+
+### Electron, planificado
+
+Vite usa `base: "./"` cuando `ELECTRON=true`, pero el wrapper, distribución y auto-update de Electron siguen pendientes.
 
 ---
 
 ## Seguridad
 
-- **RLS** en tablas de negocio; roles con `has_role()` (SECURITY DEFINER).
-- **Service role** solo en servidor; nunca en variables `VITE_*` ni en el bundle del cliente.
-- No commitear `.env`, `.env.local`, `supabase/.temp/`.
-- Si alguna clave estuvo en git: **rotar** anon y service role en Supabase antes de publicar el repositorio.
-
----
+- RLS está habilitado en todas las tablas operativas.
+- Los roles viven en `user_roles` y se consultan con `has_role()`/`has_any_role()`.
+- El service role solo existe dentro de código servidor y nunca lleva prefijo `VITE_`.
+- Las fotografías viven en el bucket privado `order-photos` y se entregan con URLs firmadas.
+- Las reglas de flujo se verifican en server functions además de RLS.
+- Los técnicos reciben vistas de inventario sin costos, stock ni proveedor.
+- Los pagos no pueden superar el total del presupuesto.
+- No commitee `.env`, `.env.local`, `.env.e2e.local` ni `supabase/.temp/`.
+- Si una clave llega al historial Git, rótela antes de usar o publicar el repositorio.
 
 ## Roadmap
 
-- [ ] Wrapper **Electron** para escritorio
-- [ ] Tablas con **TanStack Table**
-- [ ] **i18n** (react-i18next, ES / EN)
-- [ ] PDF ampliado (recibos, más reportes)
-- [ ] **Auto-updater** en builds de escritorio
-
----
+- [ ] Wrapper y distribución Electron.
+- [ ] Auto-updater para escritorio.
+- [ ] Envío real de notificaciones por email y/o WhatsApp.
+- [ ] Integraciones de facturación/Hacienda.
+- [ ] Modo offline y soporte multi-sucursal.
+- [ ] Ampliación de recibos y reportes PDF.
 
 ## Documentación adicional
 
-| Documento                                    | Contenido                                                        |
-| -------------------------------------------- | ---------------------------------------------------------------- |
-| [`AGENTS.md`](./AGENTS.md)                   | Reglas para agentes de IA (Supabase, secretos, server functions) |
-| [`ENGINEERING.md`](./ENGINEERING.md)         | Arquitectura detallada y errores comunes                         |
-| [`supabase/README.md`](./supabase/README.md) | Migraciones y CLI                                                |
-
----
+| Documento                                                    | Contenido                                         |
+| ------------------------------------------------------------ | ------------------------------------------------- |
+| [`ENGINEERING.md`](./ENGINEERING.md)                         | Arquitectura y convenciones de implementación.    |
+| [`AGENTS.md`](./AGENTS.md)                                   | Reglas de seguridad y trabajo para agentes de IA. |
+| [`docs/service-order-flow.md`](./docs/service-order-flow.md) | Flujo canónico de órdenes.                        |
+| [`docs/data-model.md`](./docs/data-model.md)                 | Entidades y matriz de permisos.                   |
+| [`docs/api-spec.yml`](./docs/api-spec.yml)                   | Contratos RPC de server functions.                |
+| [`supabase/README.md`](./supabase/README.md)                 | Aplicación de migraciones.                        |
 
 ## Licencia
 
