@@ -46,6 +46,7 @@ const newOrderSchema = z.object({
   technicianId: z.string(),
   source: z.enum(SOURCES),
   accessories: z.string(),
+  equipmentCondition: z.string().trim().max(100),
   advance: z.coerce.number().min(0),
 });
 
@@ -67,6 +68,7 @@ function NewOrderPage() {
       technicianId: "none",
       source: "counter",
       accessories: "",
+      equipmentCondition: "",
       advance: 0,
     },
   });
@@ -104,6 +106,7 @@ function NewOrderPage() {
         source: values.source,
         technician_id: values.technicianId === "none" ? null : values.technicianId,
         received_accessories: values.accessories.trim() || null,
+        equipment_condition: values.equipmentCondition.trim(),
         advance: values.advance,
       }),
     onSuccess: async (data, values) => {
@@ -355,6 +358,28 @@ function NewOrderPage() {
                         {...field}
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="equipmentCondition"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>{t("orders.equipmentCondition")}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        maxLength={100}
+                        placeholder={t("orders.equipmentConditionPlaceholder")}
+                        {...field}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      {t("orders.equipmentConditionHint", { count: field.value.length })}
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

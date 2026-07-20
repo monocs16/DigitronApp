@@ -39,7 +39,6 @@ payment, and closing — with a dedicated warranty path.
 | Modelo        | string   | Model                                            |
 | NumeroSerie   | string   | Serial number — used for warranty history lookup |
 | TipoEquipo    | string   |                                                  |
-| Accesorios    | string   |                                                  |
 | FacturaCompra | string   | Purchase invoice                                 |
 | TiendaCompra  | string   | Store of purchase                                |
 | FechaCompra   | datetime |                                                  |
@@ -55,6 +54,8 @@ payment, and closing — with a dedicated warranty path.
 | Procedencia            | string   | Source/origin                                        |
 | Atencion               | string   |                                                      |
 | ReporteFalla           | string   | Reported fault                                       |
+| EstadoEquipo           | string   | Condition of the equipment when received             |
+| AccesoriosRecibidos    | string   | Accessories received for this specific visit         |
 | EstadoOrden            | string   | Order state (intake → … → closed)                    |
 | ObservacionesGenerales | string   |                                                      |
 | Garantia               | string   | Warranty flag/notes                                  |

@@ -135,22 +135,22 @@ erDiagram
   orders ||--o{ orders : warranty_origin
 ```
 
-| Tabla                   | Descripción                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| `profiles`              | Perfil del usuario Auth: nombre, email y estado activo.                        |
-| `user_roles`            | Roles `cliente`, `administrativo`, `tecnico` y `super`.                        |
-| `customers`             | Cliente y datos de contacto; identificación opcional pero única si se informa. |
-| `equipment`             | Activo independiente; serie opcional pero única si se informa.                 |
-| `orders`                | Agregado principal del servicio, cliente/equipo de la visita, etapa y entrega. |
-| `technical_evaluations` | Diagnóstico y observaciones del técnico.                                       |
-| `budgets`               | Presupuesto único por orden, anticipo y decisión del cliente.                  |
-| `parts`                 | Inventario comercial de repuestos.                                             |
-| `order_parts`           | Repuestos cotizados o usados, con snapshots de costo y disponibilidad.         |
-| `repairs`               | Trabajo realizado, técnico y estado de reparación.                             |
-| `payments`              | Pagos registrados para la orden.                                               |
-| `order_photos`          | Metadatos de archivos privados en Storage.                                     |
-| `order_notes`           | Bitácora humana interna append-only.                                           |
-| `audit_log`             | Auditoría técnica generada por triggers.                                       |
+| Tabla                   | Descripción                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| `profiles`              | Perfil del usuario Auth: nombre, email y estado activo.                                 |
+| `user_roles`            | Roles `cliente`, `administrativo`, `tecnico` y `super`.                                 |
+| `customers`             | Cliente y datos de contacto; identificación opcional pero única si se informa.          |
+| `equipment`             | Activo independiente; serie opcional pero única si se informa.                          |
+| `orders`                | Agregado principal: cliente/equipo de la visita, condición al recibir, etapa y entrega. |
+| `technical_evaluations` | Diagnóstico y observaciones del técnico.                                                |
+| `budgets`               | Presupuesto único por orden, anticipo y decisión del cliente.                           |
+| `parts`                 | Inventario comercial de repuestos.                                                      |
+| `order_parts`           | Repuestos cotizados o usados, con snapshots de costo y disponibilidad.                  |
+| `repairs`               | Trabajo realizado, técnico y estado de reparación.                                      |
+| `payments`              | Pagos registrados para la orden.                                                        |
+| `order_photos`          | Metadatos de archivos privados en Storage.                                              |
+| `order_notes`           | Bitácora humana interna append-only.                                                    |
+| `audit_log`             | Auditoría técnica generada por triggers.                                                |
 
 Los técnicos consultan inventario mediante las vistas restringidas `parts_technician` y `order_parts_technician`; costos, stock y proveedor permanecen protegidos.
 

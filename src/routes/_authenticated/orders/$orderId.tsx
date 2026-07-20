@@ -826,8 +826,8 @@ function OrderDetailPage() {
 
   if (authLoading || orderPending) return <OrderDetailSkeleton />;
   if (!order) return <p className="text-sm text-muted-foreground">{t("orders.notFound")}</p>;
-  const receivedAccessories = (order as { received_accessories?: string | null })
-    .received_accessories;
+  const receivedAccessories = order.received_accessories;
+  const equipmentCondition = order.equipment_condition;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -1275,6 +1275,14 @@ function OrderDetailPage() {
                     {t("equipmentPage.accessories")}
                   </p>
                   <p className="mt-1 whitespace-pre-wrap">{receivedAccessories}</p>
+                </div>
+              )}
+              {equipmentCondition && (
+                <div className="sm:col-span-2">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {t("orders.equipmentCondition")}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap">{equipmentCondition}</p>
                 </div>
               )}
               <div className="sm:col-span-2 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">

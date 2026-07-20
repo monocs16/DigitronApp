@@ -173,9 +173,7 @@ export type Database = {
       };
       equipment: {
         Row: {
-          accessories: string | null;
           brand: string;
-          client_id: string;
           created_at: string;
           id: string;
           model: string;
@@ -186,9 +184,7 @@ export type Database = {
           type: string;
         };
         Insert: {
-          accessories?: string | null;
           brand: string;
-          client_id: string;
           created_at?: string;
           id?: string;
           model: string;
@@ -199,9 +195,7 @@ export type Database = {
           type: string;
         };
         Update: {
-          accessories?: string | null;
           brand?: string;
-          client_id?: string;
           created_at?: string;
           id?: string;
           model?: string;
@@ -211,12 +205,43 @@ export type Database = {
           serial_number?: string | null;
           type?: string;
         };
+        Relationships: [];
+      };
+      order_notes: {
+        Row: {
+          body: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          order_id: string;
+        };
+        Insert: {
+          body: string;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          order_id: string;
+        };
+        Update: {
+          body?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          order_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "equipment_client_id_fkey";
-            columns: ["client_id"];
+            foreignKeyName: "order_notes_created_by_fkey";
+            columns: ["created_by"];
             isOneToOne: false;
-            referencedRelation: "customers";
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_notes_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
             referencedColumns: ["id"];
           },
         ];
@@ -280,6 +305,13 @@ export type Database = {
             referencedRelation: "parts";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "order_parts_part_id_fkey";
+            columns: ["part_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_technician";
+            referencedColumns: ["id"];
+          },
         ];
       };
       order_photos: {
@@ -332,11 +364,13 @@ export type Database = {
           decision_notified_at: string | null;
           delivery_at: string | null;
           delivery_notified_at: string | null;
+          equipment_condition: string;
           equipment_id: string;
           general_notes: string | null;
           id: string;
           intake_at: string;
           order_number: string;
+          received_accessories: string | null;
           received_by: string | null;
           reported_fault: string;
           source: string | null;
@@ -355,11 +389,13 @@ export type Database = {
           decision_notified_at?: string | null;
           delivery_at?: string | null;
           delivery_notified_at?: string | null;
+          equipment_condition?: string;
           equipment_id: string;
           general_notes?: string | null;
           id?: string;
           intake_at?: string;
           order_number?: string;
+          received_accessories?: string | null;
           received_by?: string | null;
           reported_fault: string;
           source?: string | null;
@@ -378,11 +414,13 @@ export type Database = {
           decision_notified_at?: string | null;
           delivery_at?: string | null;
           delivery_notified_at?: string | null;
+          equipment_condition?: string;
           equipment_id?: string;
           general_notes?: string | null;
           id?: string;
           intake_at?: string;
           order_number?: string;
+          received_accessories?: string | null;
           received_by?: string | null;
           reported_fault?: string;
           source?: string | null;
@@ -647,7 +685,65 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      order_parts_technician: {
+        Row: {
+          created_at: string | null;
+          evaluation_id: string | null;
+          id: string | null;
+          order_id: string | null;
+          part_id: string | null;
+          quantity: number | null;
+          stage: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "order_parts_evaluation_id_fkey";
+            columns: ["evaluation_id"];
+            isOneToOne: false;
+            referencedRelation: "technical_evaluations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_parts_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_parts_part_id_fkey";
+            columns: ["part_id"];
+            isOneToOne: false;
+            referencedRelation: "parts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_parts_part_id_fkey";
+            columns: ["part_id"];
+            isOneToOne: false;
+            referencedRelation: "parts_technician";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      parts_technician: {
+        Row: {
+          description: string | null;
+          id: string | null;
+          part_code: string | null;
+        };
+        Insert: {
+          description?: string | null;
+          id?: string | null;
+          part_code?: string | null;
+        };
+        Update: {
+          description?: string | null;
+          id?: string | null;
+          part_code?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       has_any_role: {
@@ -661,6 +757,8 @@ export type Database = {
         };
         Returns: boolean;
       };
+      show_limit: { Args: never; Returns: number };
+      show_trgm: { Args: { "": string }; Returns: string[] };
     };
     Enums: {
       app_role: "cliente" | "administrativo" | "tecnico" | "super";

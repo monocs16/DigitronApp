@@ -245,6 +245,7 @@ RLS debe habilitarse en toda tabla operativa nueva antes de conceder acceso a `a
 - `customers.tax_id` y `equipment.serial_number` son opcionales, pero únicos si contienen valor, normalizados con trim/lowercase.
 - `equipment` no pertenece permanentemente a un cliente; la relación de cada visita vive en `orders`.
 - `received_accessories` pertenece a la orden, no al equipo.
+- `equipment_condition` captura el estado físico/funcional al recibirlo y alimenta el campo `Estado` del PDF.
 - `budgets` es uno-a-uno con la orden.
 - `order_notes` es append-only y se diferencia de `audit_log`.
 - El costo y disponibilidad de `order_parts` se capturan dentro de Postgres.

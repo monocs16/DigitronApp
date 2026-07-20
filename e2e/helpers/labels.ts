@@ -20,6 +20,7 @@ export const labels = {
     newOrder: "Nueva orden",
     createOrder: "Crear orden",
     problemReported: "Problema reportado",
+    equipmentCondition: "Estado del equipo al recibir",
     sendToEvaluation: "Enviar a evaluación",
     completeEvaluation: "Completar evaluación",
     sendToDecision: "Enviar decisión al cliente",
