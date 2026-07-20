@@ -10,8 +10,10 @@ export async function createIntakeOrderFromSeed(page: Page): Promise<{
   clientId: string;
   equipmentId: string;
   customerName: string;
+  equipmentCondition: string;
 }> {
   const { clientId, equipmentId, customerName, serialNumber } = await seedTestCustomerEquipment();
+  const equipmentCondition = "E2E scratched enclosure at receipt";
 
   await gotoNewOrderForm(page);
   await page.getByPlaceholder("Buscar por nombre o cédula").fill(customerName);
@@ -23,11 +25,14 @@ export async function createIntakeOrderFromSeed(page: Page): Promise<{
   await page
     .getByRole("textbox", { name: labels.orders.problemReported })
     .fill("E2E test problem description");
+  await page
+    .getByRole("textbox", { name: labels.orders.equipmentCondition })
+    .fill(equipmentCondition);
   await page.getByRole("button", { name: labels.orders.createOrder }).click();
   await page.waitForURL(/\/orders\/[a-z0-9-]+$/i, { timeout: 30_000 });
 
   const orderId = page.url().split("/").pop();
   if (!orderId) throw new Error("Could not resolve order id from URL after create");
 
-  return { orderId, clientId, equipmentId, customerName };
+  return { orderId, clientId, equipmentId, customerName, equipmentCondition };
 }

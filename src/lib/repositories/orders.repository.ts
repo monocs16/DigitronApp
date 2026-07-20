@@ -54,12 +54,13 @@ export const ordersRepository = {
     source: string;
     technician_id: string | null;
     received_accessories: string | null;
+    equipment_condition: string;
     advance: number;
   }) => {
     const { advance, ...order } = payload;
     const { data, error } = await supabase
       .from("orders")
-      .insert({ ...order, stage: "evaluation" } as never)
+      .insert({ ...order, stage: "evaluation" })
       .select("id")
       .single();
     if (error) throw error;

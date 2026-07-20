@@ -34,11 +34,12 @@ test.describe("Admin — order flow", () => {
       test.skip(true, "SUPABASE_SERVICE_ROLE_KEY not set — skipping cleanup-dependent test");
     }
 
-    const { clientId, equipmentId } = await createIntakeOrderFromSeed(page);
+    const { clientId, equipmentId, equipmentCondition } = await createIntakeOrderFromSeed(page);
     try {
       await expect(page.getByText(labels.stage.evaluation).first()).toBeVisible({
         timeout: 15_000,
       });
+      await expect(page.getByText(equipmentCondition)).toBeVisible();
     } finally {
       await deleteTestCustomer(clientId, equipmentId);
     }
