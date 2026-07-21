@@ -56,7 +56,7 @@ export async function gotoOrderDetail(page: Page, orderId: string): Promise<void
 export async function gotoNewOrderForm(page: Page): Promise<void> {
   await page.goto("/orders/new");
   await waitForAdminRoles(page);
-  await expect(page.getByPlaceholder("Buscar por nombre o cédula")).toBeVisible({
+  await expect(page.getByPlaceholder("Ingrese nombre, teléfono o cédula…")).toBeVisible({
     timeout: 15_000,
   });
 }

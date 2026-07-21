@@ -26,8 +26,8 @@ flowchart TD
     A4[Generar presupuesto]
     A5[Notificar decisión al cliente]
     A6[Registrar pago]
-    A7[Notificar entrega]
-    A8[Cerrar orden]
+    A7[Marcar pendiente de retiro y notificar]
+    A8[Registrar entrega y cerrar orden]
   end
 
   subgraph TecLane[Técnico]
@@ -61,7 +61,7 @@ flowchart TD
 
   CL_DEC -- Aprobado --> T5
   CL_DEC -- Aplazado --> A9[Orden en espera por repuesto o autorización]
-  CL_DEC -- Reprobado --> A8
+  CL_DEC -- Reprobado --> A7
 
   T5 --> T6
   T6 --> T7
@@ -87,25 +87,25 @@ flowchart TD
 
 ## Stage-to-Actor Mapping
 
-| Stage (code)        | Owning actor      | Action                                        |
-| ------------------- | ----------------- | --------------------------------------------- |
-| `intake`            | administrativo    | Register order, assign technician             |
-| `evaluation`        | tecnico           | Technical evaluation + parts diagnosis        |
-| `budget`            | administrativo    | Generate budget, verify stock                 |
-| `customer_decision` | administrativo    | Notify client; capture Approved/Deferred/Rejected |
-| `on_hold`           | —                 | Waiting for part or client authorization      |
-| `repair`            | tecnico           | Execute repair, log used parts + labor        |
-| `payment`           | administrativo    | Register payment(s)                           |
-| `delivered`         | administrativo    | Notify client of pickup                       |
-| `closed`            | administrativo    | Close order; may open warranty order          |
+| Stage (code)          | Owning actor   | Action                                                |
+| --------------------- | -------------- | ----------------------------------------------------- |
+| `intake`              | administrativo | Register order, assign technician                     |
+| `evaluation`          | tecnico        | Technical evaluation + parts diagnosis                |
+| `budget`              | administrativo | Generate budget, verify stock                         |
+| `customer_decision`   | administrativo | Notify client; capture Approved/Deferred/Rejected     |
+| `on_hold`             | —              | Waiting for part or client authorization              |
+| `repair`              | tecnico        | Execute repair, log evaluated parts used + labor      |
+| `payment`             | administrativo | Register payment(s) and settle or waive the balance   |
+| `awaiting_withdrawal` | administrativo | Notify pickup; record recipient and deliver equipment |
+| `closed`              | administrativo | Delivered order; may open warranty order              |
 
 ## Decision Branches
 
-| Decision   | Next stage   | Notes                                              |
-| ---------- | ------------ | -------------------------------------------------- |
-| Approved   | `repair`     | Budget authorized; technician starts work          |
-| Deferred   | `on_hold`    | Waiting for part/auth; loops back to `customer_decision` |
-| Rejected   | `closed`     | Order closed without repair                        |
+| Decision | Next stage            | Notes                                                                        |
+| -------- | --------------------- | ---------------------------------------------------------------------------- |
+| Approved | `repair`              | Budget authorized; technician starts work                                    |
+| Deferred | `on_hold`             | Reason is copied to internal notes and history; loops to `customer_decision` |
+| Rejected | `awaiting_withdrawal` | No repair; equipment remains pending pickup                                  |
 
 ## Warranty Path
 
@@ -115,5 +115,7 @@ After `closed`, administrativo may open a new order linked to the original via `
 
 - `src/lib/state-machine.ts` — `STAGE_TRANSITIONS` and `STAGE_ACTOR_ROLES` must match the table above exactly.
 - `src/lib/orders.functions.ts` — server-side transition guards enforce role + gate checks before any stage advance.
+- Leaving `payment` requires the persisted budget balance to be settled or explicitly waived.
+- Only parts quoted during technical evaluation may be recorded as used during repair; doing so must not rewrite the approved budget.
 - RLS policies (`supabase/migrations/*_rls.sql`) encode read/write boundaries per role per stage.
 - UI action buttons in `orders/$orderId.tsx` (`currentStepContent`) are gated by `canTransition` and must reflect the owning actor column above.

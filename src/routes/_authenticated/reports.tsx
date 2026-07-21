@@ -95,7 +95,7 @@ function ReportsPage() {
 
   const byTech = new Map<string | null, number>();
   for (const o of rangedOrders) {
-    if (["delivered", "closed"].includes(o.stage)) continue;
+    if (["awaiting_withdrawal", "closed"].includes(o.stage)) continue;
     byTech.set(o.technician_id, (byTech.get(o.technician_id) ?? 0) + 1);
   }
   const techRows = Array.from(byTech.entries())

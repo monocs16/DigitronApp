@@ -13,7 +13,7 @@ export const STAGE_ORDER = [
   "on_hold",
   "repair",
   "payment",
-  "delivered",
+  "awaiting_withdrawal",
   "closed",
 ] as const;
 
@@ -32,7 +32,7 @@ export const STAGE_TOKEN: Record<OrderStage, string> = {
   on_hold: "stage-hold",
   repair: "stage-repair",
   payment: "stage-payment",
-  delivered: "stage-delivered",
+  awaiting_withdrawal: "stage-awaiting-withdrawal",
   closed: "stage-closed",
 };
 

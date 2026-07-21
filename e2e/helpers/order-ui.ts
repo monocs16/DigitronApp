@@ -16,9 +16,9 @@ export async function createIntakeOrderFromSeed(page: Page): Promise<{
   const equipmentCondition = "E2E scratched enclosure at receipt";
 
   await gotoNewOrderForm(page);
-  await page.getByPlaceholder("Buscar por nombre o cédula").fill(customerName);
-  await page.getByRole("button", { name: customerName, exact: true }).click();
-  await page.getByPlaceholder("Buscar por número de serie").fill(serialNumber);
+  await page.getByPlaceholder("Ingrese nombre, teléfono o cédula…").fill(customerName);
+  await page.getByRole("button").filter({ hasText: customerName }).click();
+  await page.getByPlaceholder("Ingrese modelo, serie o marca…").fill(serialNumber);
   const equipmentOption = page.getByRole("button").filter({ hasText: serialNumber });
   await expect(equipmentOption).toBeVisible();
   await equipmentOption.click();

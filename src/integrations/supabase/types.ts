@@ -470,6 +470,7 @@ export type Database = {
       parts: {
         Row: {
           created_at: string;
+          created_from_order_id: string | null;
           description: string;
           id: string;
           part_code: string;
@@ -480,6 +481,7 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
+          created_from_order_id?: string | null;
           description: string;
           id?: string;
           part_code: string;
@@ -490,6 +492,7 @@ export type Database = {
         };
         Update: {
           created_at?: string;
+          created_from_order_id?: string | null;
           description?: string;
           id?: string;
           part_code?: string;
@@ -498,7 +501,15 @@ export type Database = {
           unit_cost?: number;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "parts_created_from_order_id_fkey";
+            columns: ["created_from_order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       payments: {
         Row: {
@@ -771,7 +782,7 @@ export type Database = {
         | "on_hold"
         | "repair"
         | "payment"
-        | "delivered"
+        | "awaiting_withdrawal"
         | "closed";
     };
     CompositeTypes: {
@@ -911,7 +922,7 @@ export const Constants = {
         "on_hold",
         "repair",
         "payment",
-        "delivered",
+        "awaiting_withdrawal",
         "closed",
       ],
     },

@@ -48,6 +48,8 @@ interface PartFormDialogProps {
   onOpenChange: (open: boolean) => void;
   editing?: PartEditing | null;
   onSuccess?: (id: string) => void;
+  originOrderId?: string;
+  hideCommercialFields?: boolean;
 }
 
 const EMPTY: PartFormValues = {
@@ -58,7 +60,14 @@ const EMPTY: PartFormValues = {
   supplier: "",
 };
 
-export function PartFormDialog({ open, onOpenChange, editing, onSuccess }: PartFormDialogProps) {
+export function PartFormDialog({
+  open,
+  onOpenChange,
+  editing,
+  onSuccess,
+  originOrderId,
+  hideCommercialFields = false,
+}: PartFormDialogProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
@@ -96,11 +105,15 @@ export function PartFormDialog({ open, onOpenChange, editing, onSuccess }: PartF
         await partsRepository.update(editing.id, payload);
         return editing.id;
       }
-      return partsRepository.create(payload);
+      return partsRepository.create({
+        ...payload,
+        created_from_order_id: originOrderId ?? null,
+      });
     },
     onSuccess: (id) => {
       toast.success(editing ? t("inventory.updated") : t("inventory.created"));
       qc.invalidateQueries({ queryKey: ["parts"] });
+      qc.invalidateQueries({ queryKey: ["parts-catalog"] });
       onOpenChange(false);
       onSuccess?.(id);
     },
@@ -131,19 +144,21 @@ export function PartFormDialog({ open, onOpenChange, editing, onSuccess }: PartF
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="supplier"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("inventory.supplier")}</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!hideCommercialFields && (
+                <FormField
+                  control={form.control}
+                  name="supplier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("inventory.supplier")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="description"
@@ -157,32 +172,36 @@ export function PartFormDialog({ open, onOpenChange, editing, onSuccess }: PartF
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="unit_cost"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("inventory.unitCost")}</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="0" step="0.01" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="stock"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("inventory.stock")}</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="0" step="1" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!hideCommercialFields && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="unit_cost"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("inventory.unitCost")}</FormLabel>
+                        <FormControl>
+                          <Input type="number" min="0" step="0.01" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="stock"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("inventory.stock")}</FormLabel>
+                        <FormControl>
+                          <Input type="number" min="0" step="1" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -31,20 +31,20 @@ function DashboardPage() {
     {} as Record<OrderStage, number>,
   );
 
-  const active = orders.filter((o) => !["delivered", "closed"].includes(o.stage));
+  const active = orders.filter((o) => o.stage !== "closed");
   const stale = active.filter((o) => {
     const updated = new Date(o.updated_at);
     return (Date.now() - updated.getTime()) / 86_400_000 > STALE_DAYS;
   });
   const mine = orders.filter(
-    (o) => o.technician_id === profile?.id && !["delivered", "closed"].includes(o.stage),
+    (o) => o.technician_id === profile?.id && !["awaiting_withdrawal", "closed"].includes(o.stage),
   );
 
   // Pending-action inbox: orders awaiting THIS user by role + stage + assignment.
   const isSuper = hasRole("super");
   const isAdmin = hasRole("administrativo");
   const isTech = hasRole("tecnico");
-  const ADMIN_STAGES = ["intake", "budget", "customer_decision", "payment", "delivered"];
+  const ADMIN_STAGES = ["intake", "budget", "customer_decision", "payment", "awaiting_withdrawal"];
   const TECH_STAGES = ["evaluation", "repair"];
   const inbox = orders.filter((o) => {
     const adminMatch = (isSuper || isAdmin) && ADMIN_STAGES.includes(o.stage);
@@ -65,7 +65,7 @@ function DashboardPage() {
     { label: t("dashboard.inRepair"), value: counts.repair, icon: Wrench, tone: "text-amber-500" },
     {
       label: t("dashboard.readyForDelivery"),
-      value: counts.payment,
+      value: counts.awaiting_withdrawal,
       icon: CheckCircle2,
       tone: "text-emerald-500",
     },

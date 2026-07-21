@@ -5,13 +5,14 @@ export const STAGE_TRANSITIONS: Record<OrderStage, OrderStage[]> = {
   intake: ["evaluation"],
   evaluation: ["budget"],
   budget: ["customer_decision"],
-  // Customer decision branches: approved -> repair, deferred -> on_hold, rejected -> closed
-  customer_decision: ["repair", "on_hold", "closed"],
+  // Customer decision branches: approved -> repair, deferred -> on_hold,
+  // rejected -> awaiting withdrawal.
+  customer_decision: ["repair", "on_hold", "awaiting_withdrawal"],
   // Deferred loop: once the part/authorization arrives, return to the decision
   on_hold: ["customer_decision"],
   repair: ["payment"],
-  payment: ["delivered"],
-  delivered: ["closed"],
+  payment: ["awaiting_withdrawal"],
+  awaiting_withdrawal: ["closed"],
   closed: [],
 };
 
@@ -24,8 +25,8 @@ export const STAGE_PREVIOUS: Record<OrderStage, OrderStage[]> = {
   on_hold: ["customer_decision"],
   repair: ["customer_decision"],
   payment: ["repair"],
-  delivered: ["payment"],
-  closed: ["delivered"],
+  awaiting_withdrawal: ["payment", "customer_decision"],
+  closed: ["awaiting_withdrawal"],
 };
 
 // Which roles may move an order INTO a given target stage. `super` is always allowed.
@@ -40,7 +41,7 @@ export const STAGE_ACTOR_ROLES: Record<OrderStage, AppRole[]> = {
   repair: ["administrativo"],
   // Technician marks repair complete and advances to payment.
   payment: ["tecnico"],
-  delivered: ["administrativo"],
+  awaiting_withdrawal: ["administrativo"],
   closed: ["administrativo"],
 };
 
@@ -49,7 +50,7 @@ export type TransitionContext = {
   isAssignedTechnician: boolean;
   /** Whether the order's budget decision is `approved` (gate for entering `repair`). */
   budgetApproved: boolean;
-  /** Whether the outstanding balance is settled or waived (gate for `delivered`). */
+  /** Whether the outstanding balance is settled or waived before leaving `payment`. */
   balanceSettled: boolean;
 };
 
@@ -59,9 +60,15 @@ function roleAllowedForStage(target: OrderStage, roles: AppRole[]): boolean {
 }
 
 /** Business gates that depend on data beyond the stage itself. */
-export function gateAllows(target: OrderStage, ctx: TransitionContext): boolean {
+export function gateAllows(
+  current: OrderStage,
+  target: OrderStage,
+  ctx: TransitionContext,
+): boolean {
   if (target === "repair" && !ctx.budgetApproved) return false;
-  if (target === "delivered" && !ctx.balanceSettled) return false;
+  if (current === "payment" && target === "awaiting_withdrawal" && !ctx.balanceSettled) {
+    return false;
+  }
   return true;
 }
 
@@ -73,7 +80,7 @@ export function allowedNextStages(current: OrderStage, ctx: TransitionContext): 
     if (!roleAllowedForStage(target, ctx.roles)) return false;
     // Technicians may only act on orders assigned to them (unless also super).
     if (isTech && !isSuper && !ctx.isAssignedTechnician) return false;
-    if (!gateAllows(target, ctx)) return false;
+    if (!gateAllows(current, target, ctx)) return false;
     return true;
   });
 }

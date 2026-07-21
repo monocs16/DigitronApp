@@ -37,10 +37,12 @@ export const partsRepository = {
     unit_cost: number;
     stock: number;
     supplier: string | null;
+    created_from_order_id?: string | null;
   }) => {
-    const { data, error } = await supabase.from("parts").insert(payload).select("id").single();
+    const id = crypto.randomUUID();
+    const { error } = await supabase.from("parts").insert({ ...payload, id });
     if (error) throw error;
-    return data.id as string;
+    return id;
   },
 
   update: async (

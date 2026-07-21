@@ -6,7 +6,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { STAGE_ORDER, type AppRole, type OrderStage } from "@/lib/digitron";
 import { allowedPreviousStages, canTransition, type TransitionContext } from "@/lib/state-machine";
 
-const WARRANTY_ELIGIBLE_STAGES = ["delivered", "closed"];
+const WARRANTY_ELIGIBLE_STAGES = ["closed"];
 const ADMIN_ROLES: AppRole[] = ["administrativo", "super"];
 
 type DbClient = SupabaseClient<Database>;
@@ -123,7 +123,7 @@ export const revertOrderStage = createServerFn({ method: "POST" })
   });
 
 /**
- * Opens a new warranty order from a delivered/closed order, reusing the
+ * Opens a new warranty order from a closed order, reusing the
  * original customer, equipment and reported fault, linked via warranty_origin_id.
  */
 export const createWarrantyOrder = createServerFn({ method: "POST" })
@@ -143,7 +143,7 @@ export const createWarrantyOrder = createServerFn({ method: "POST" })
       .single();
     if (originErr || !origin) throw new Error("Order not found.");
     if (!WARRANTY_ELIGIBLE_STAGES.includes(origin.stage)) {
-      throw new Error("Only delivered or closed orders can open a warranty order.");
+      throw new Error("Only closed orders can open a warranty order.");
     }
 
     const { data: created, error: insErr } = await supabase
@@ -164,7 +164,8 @@ export const createWarrantyOrder = createServerFn({ method: "POST" })
 
 /**
  * Records the customer's budget decision and auto-routes the order along the
- * matching branch (approved → repair, deferred → on_hold, rejected → closed),
+ * matching branch (approved → repair, deferred → on_hold,
+ * rejected → awaiting_withdrawal),
  * validated by the state machine. Approved also sets the order's authorized flag.
  */
 export const recordBudgetDecision = createServerFn({ method: "POST" })
@@ -187,6 +188,7 @@ export const recordBudgetDecision = createServerFn({ method: "POST" })
     if (data.decision === "deferred" && !data.deferred_reason?.trim()) {
       throw new Error("A deferred decision requires a reason.");
     }
+    const deferredReason = data.deferred_reason?.trim();
 
     const { data: budget, error: bErr } = await supabase
       .from("budgets")
@@ -201,13 +203,17 @@ export const recordBudgetDecision = createServerFn({ method: "POST" })
       .update({
         decision: data.decision,
         decided_at: new Date().toISOString(),
-        deferred_reason: data.decision === "deferred" ? data.deferred_reason!.trim() : null,
+        deferred_reason: data.decision === "deferred" ? deferredReason : null,
       })
       .eq("id", budget.id);
     if (upBudget) throw new Error(upBudget.message);
 
     const target: OrderStage =
-      data.decision === "approved" ? "repair" : data.decision === "deferred" ? "on_hold" : "closed";
+      data.decision === "approved"
+        ? "repair"
+        : data.decision === "deferred"
+          ? "on_hold"
+          : "awaiting_withdrawal";
     const { stage, ctx } = await loadOrderContext(supabase, userId, data.order_id);
     if (!canTransition(stage, target, ctx)) throw new Error("Transition not allowed.");
     const { error: upStage } = await supabase
@@ -218,6 +224,15 @@ export const recordBudgetDecision = createServerFn({ method: "POST" })
       })
       .eq("id", data.order_id);
     if (upStage) throw new Error(upStage.message);
+
+    if (data.decision === "deferred") {
+      const { error: noteError } = await supabase.from("order_notes").insert({
+        order_id: data.order_id,
+        created_by: userId,
+        body: `Motivo de diferimiento: ${deferredReason}`,
+      });
+      if (noteError) throw new Error(noteError.message);
+    }
 
     return { ok: true as const, stage: target };
   });
@@ -246,34 +261,16 @@ export const notifyCustomer = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Records the receiver and delivery time and advances the order to delivered. */
+/** Records the withdrawal, optional closing notes, and closes the order. */
 export const deliverOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ order_id: z.string().uuid(), received_by: z.string().min(1).max(200) }).parse(input),
-  )
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { stage, ctx } = await loadOrderContext(supabase, userId, data.order_id);
-    if (!canTransition(stage, "delivered", ctx)) throw new Error("Transition not allowed.");
-    const { error } = await supabase
-      .from("orders")
-      .update({
-        received_by: data.received_by.trim(),
-        delivery_at: new Date().toISOString(),
-        stage: "delivered",
-      })
-      .eq("id", data.order_id);
-    if (error) throw new Error(error.message);
-    return { ok: true as const };
-  });
-
-/** Records closing notes and advances the order to closed. */
-export const closeOrder = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
     z
-      .object({ order_id: z.string().uuid(), closing_notes: z.string().max(2000).optional() })
+      .object({
+        order_id: z.string().uuid(),
+        received_by: z.string().trim().min(1).max(200),
+        closing_notes: z.string().max(2000).optional(),
+      })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -282,7 +279,12 @@ export const closeOrder = createServerFn({ method: "POST" })
     if (!canTransition(stage, "closed", ctx)) throw new Error("Transition not allowed.");
     const { error } = await supabase
       .from("orders")
-      .update({ closing_notes: data.closing_notes?.trim() || null, stage: "closed" })
+      .update({
+        received_by: data.received_by,
+        delivery_at: new Date().toISOString(),
+        closing_notes: data.closing_notes?.trim() || null,
+        stage: "closed",
+      })
       .eq("id", data.order_id);
     if (error) throw new Error(error.message);
     return { ok: true as const };
