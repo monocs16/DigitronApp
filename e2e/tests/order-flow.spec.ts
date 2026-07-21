@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { labels } from "../helpers/labels";
-import { gotoNewOrderForm, gotoOrderDetail, waitForAdminOrderAccess } from "../helpers/page";
+import {
+  expandOrderModule,
+  gotoNewOrderForm,
+  gotoOrderDetail,
+  waitForAdminOrderAccess,
+} from "../helpers/page";
 import { createIntakeOrderFromSeed } from "../helpers/order-ui";
 import {
   deleteTestCustomer,
@@ -177,6 +182,7 @@ test.describe("Admin — order detail stage actions", () => {
     try {
       await seedTestEvaluation(order.id);
       await gotoOrderDetail(page, order.id);
+      await expandOrderModule(page, "history-card");
 
       await expect(page.getByText("Evaluación técnica registrada", { exact: true })).toBeVisible({
         timeout: 15_000,
@@ -201,6 +207,8 @@ test.describe("Admin — order detail stage actions", () => {
 
       await page.getByLabel("Motivo del diferimiento").fill(reason);
       await page.getByRole("button", { name: "Diferido", exact: true }).click();
+      await expandOrderModule(page, "internal-notes-card");
+      await expandOrderModule(page, "history-card");
 
       await expect(
         page.getByText(`Motivo de diferimiento: ${reason}`, { exact: true }),
@@ -308,8 +316,9 @@ test.describe("Admin — order detail stage actions", () => {
       await page.getByRole("button", { name: "Agregar", exact: true }).last().click();
 
       await expect(page.getByText("Repuesto agregado", { exact: true })).toBeVisible();
-      const paymentsCard = page.getByTestId("payments-card");
-      await expect(paymentsCard.getByText("6000.00", { exact: true })).toBeVisible();
+      await expandOrderModule(page, "budget-card");
+      const budgetCard = page.getByTestId("budget-card");
+      await expect(budgetCard.getByText("6000.00", { exact: true })).toBeVisible();
     } finally {
       await deleteTestCustomer(clientId, equipmentId);
       await deleteTestPartByCode(partCode);
@@ -324,6 +333,7 @@ test.describe("Admin — order detail stage actions", () => {
       await seedTestBudget(order.id, { labor_cost: 5000, advances: 1000 });
       await seedTestPayment(order.id, 4000, "cash");
       await gotoOrderDetail(page, order.id);
+      await expandOrderModule(page, "budget-card");
 
       await page.getByRole("spinbutton", { name: "Mano de obra" }).fill("6000");
 
