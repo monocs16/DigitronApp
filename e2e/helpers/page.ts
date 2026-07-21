@@ -53,6 +53,18 @@ export async function gotoOrderDetail(page: Page, orderId: string): Promise<void
   await expect(page.getByText(labels.orders.notFound)).not.toBeVisible();
 }
 
+/** Expands an order-detail module only when its collapsible card is closed. */
+export async function expandOrderModule(page: Page, testId: string): Promise<void> {
+  const module = page.getByTestId(testId);
+  await expect(module).toBeVisible({ timeout: 15_000 });
+
+  if ((await module.getAttribute("data-state")) === "closed") {
+    await module.getByRole("button").first().click();
+  }
+
+  await expect(module).toHaveAttribute("data-state", "open");
+}
+
 export async function gotoNewOrderForm(page: Page): Promise<void> {
   await page.goto("/orders/new");
   await waitForAdminRoles(page);
