@@ -12,33 +12,33 @@ Sistema web full-stack para gestionar el ciclo completo de las **órdenes de ser
 
 ## Funcionalidad
 
-- Registrar clientes y equipos. El equipo es un activo independiente; la orden registra qué cliente lo presenta en cada visita.
-- Abrir órdenes con cliente, equipo, origen, falla reportada, accesorios recibidos, técnico y anticipo opcional.
+- Registrar clientes y equipos. Los clientes se buscan por nombre, teléfono o cédula; los equipos por marca, modelo o serie. El equipo es un activo independiente y la orden registra qué cliente lo presenta en cada visita.
+- Abrir órdenes con cliente, equipo, origen, falla reportada, condición del equipo, accesorios recibidos, técnico y anticipo opcional.
 - Generar y reimprimir la orden de servicio en PDF a partir de la plantilla editable de Digitron.
-- Guiar cada orden por evaluación, presupuesto, decisión del cliente, reparación, pago, entrega y cierre.
-- Cotizar y consumir repuestos con actualización transaccional del inventario.
-- Registrar pagos sin permitir que excedan el presupuesto y condonar un saldo cuando corresponda.
+- Guiar cada orden por evaluación, presupuesto, decisión del cliente, reparación, pago, espera de retiro y cierre.
+- Cotizar repuestos durante la evaluación —incluyendo crear uno nuevo sin abandonar la orden— y consumir durante la reparación únicamente los repuestos evaluados, con actualización transaccional del inventario.
+- Registrar anticipos y múltiples pagos o métodos de pago sin permitir que excedan el saldo real del presupuesto; el presupuesto aprobado no cambia al consumir un repuesto.
 - Adjuntar fotografías privadas y mantener notas internas append-only.
-- Registrar auditoría técnica automática sobre los cambios operativos.
+- Registrar en historial y auditoría los cambios de evaluación, presupuesto, reparación, pagos, repuestos, notas, fotos, entrega y demás datos operativos.
 - Abrir una nueva orden de garantía enlazada con una orden entregada o cerrada.
 - Consultar paneles, reportes y exportaciones PDF.
 - Administrar cuentas y roles sin registro público.
 
 ## Módulos
 
-| Ruta               | Acceso principal                                          | Función                                                                                        |
-| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `/login`           | Público                                                   | Inicio de sesión con Supabase Auth.                                                            |
-| `/dashboard`       | Administrativo, técnico, super                            | KPIs, órdenes recientes, estancadas y bandeja de acciones pendientes por rol.                  |
-| `/orders`          | Administrativo, técnico asignado, super                   | Listado y filtros por etapa, técnico, fechas, cliente y equipo.                                |
-| `/orders/new`      | Administrativo, super                                     | Alta de orden y descarga automática de la orden de servicio en PDF.                            |
-| `/orders/:orderId` | Según RLS                                                 | Flujo guiado, evaluación, presupuesto, repuestos, reparación, pagos, fotos, notas y auditoría. |
-| `/clients`         | Administrativo, super                                     | Directorio y mantenimiento de clientes.                                                        |
-| `/equipment`       | Lectura técnico; edición administrativo/super             | Activos e historial de servicio por número de serie.                                           |
-| `/inventory`       | Lectura restringida técnico; edición administrativo/super | Catálogo, existencias, costos y proveedores.                                                   |
-| `/reports`         | Administrativo, super                                     | Resúmenes por etapa, técnico y periodo; repuestos y garantías; PDF.                            |
-| `/usuarios`        | Super                                                     | Crear, cambiar rol y eliminar usuarios mediante operaciones solo servidor.                     |
-| `/configuracion`   | Usuarios autenticados                                     | Perfil, tema e idioma.                                                                         |
+| Ruta               | Acceso principal                                          | Función                                                                                                                    |
+| ------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `/login`           | Público                                                   | Inicio de sesión con Supabase Auth.                                                                                        |
+| `/dashboard`       | Administrativo, técnico, super                            | KPIs, órdenes recientes, estancadas y bandeja de acciones pendientes por rol.                                              |
+| `/orders`          | Administrativo, técnico asignado, super                   | Listado y filtros por etapa, técnico, fechas, cliente y equipo.                                                            |
+| `/orders/new`      | Administrativo, super                                     | Alta de orden y descarga automática de la orden de servicio en PDF.                                                        |
+| `/orders/:orderId` | Según RLS                                                 | Flujo guiado en módulos colapsables: cliente/equipo, evaluación, presupuesto, reparación, pagos, fotos, notas e historial. |
+| `/clients`         | Administrativo, super                                     | Directorio, mantenimiento y búsqueda por nombre, teléfono o cédula.                                                        |
+| `/equipment`       | Lectura técnico; edición administrativo/super             | Activos, historial de servicio y búsqueda por marca, modelo o serie.                                                       |
+| `/inventory`       | Lectura restringida técnico; edición administrativo/super | Catálogo, existencias, costos y proveedores.                                                                               |
+| `/reports`         | Administrativo, super                                     | Resúmenes por etapa, técnico y periodo; repuestos y garantías; PDF.                                                        |
+| `/usuarios`        | Super                                                     | Crear, cambiar rol y eliminar usuarios mediante operaciones solo servidor.                                                 |
+| `/configuracion`   | Usuarios autenticados                                     | Perfil, tema e idioma.                                                                                                     |
 
 La visibilidad de la UI mejora la experiencia, pero la autorización efectiva está en **Postgres RLS** y en las validaciones de las server functions.
 
@@ -71,17 +71,17 @@ La matriz ejecutable está en [`src/lib/access.ts`](./src/lib/access.ts) y las p
 
 El enum `order_stage` define estas etapas:
 
-| Etapa               | Etiqueta             | Responsable de completar la acción |
-| ------------------- | -------------------- | ---------------------------------- |
-| `intake`            | Recepción            | Administrativo                     |
-| `evaluation`        | Evaluación técnica   | Técnico asignado                   |
-| `budget`            | Presupuesto          | Administrativo                     |
-| `customer_decision` | Decisión del cliente | Administrativo                     |
-| `on_hold`           | En espera            | Espera de repuesto o autorización  |
-| `repair`            | Reparación           | Técnico asignado                   |
-| `payment`           | Pago                 | Administrativo                     |
-| `delivered`         | Entregado            | Administrativo                     |
-| `closed`            | Cerrado              | Administrativo                     |
+| Etapa                 | Etiqueta             | Responsable de completar la acción |
+| --------------------- | -------------------- | ---------------------------------- |
+| `intake`              | Recepción            | Administrativo                     |
+| `evaluation`          | Evaluación técnica   | Técnico asignado                   |
+| `budget`              | Presupuesto          | Administrativo                     |
+| `customer_decision`   | Decisión del cliente | Administrativo                     |
+| `on_hold`             | En espera            | Espera de repuesto o autorización  |
+| `repair`              | Reparación           | Técnico asignado                   |
+| `payment`             | Pago                 | Administrativo                     |
+| `awaiting_withdrawal` | Pendiente de retiro  | Administrativo                     |
+| `closed`              | Cerrado              | Administrativo                     |
 
 ```mermaid
 stateDiagram-v2
@@ -91,11 +91,11 @@ stateDiagram-v2
   budget --> customer_decision
   customer_decision --> repair: aprobado
   customer_decision --> on_hold: diferido
-  customer_decision --> closed: rechazado
+  customer_decision --> awaiting_withdrawal: rechazado
   on_hold --> customer_decision
   repair --> payment
-  payment --> delivered
-  delivered --> closed
+  payment --> awaiting_withdrawal: saldo resuelto
+  awaiting_withdrawal --> closed: entrega registrada
 ```
 
 En la implementación actual, el formulario de alta completa la recepción y crea la orden directamente en `evaluation`. `intake` se conserva en el modelo y en la máquina de estados para representar el inicio formal del proceso.
@@ -104,9 +104,13 @@ Reglas principales:
 
 - El técnico solo actúa sobre órdenes asignadas.
 - Solo se entra a `repair` con un presupuesto aprobado.
-- Una decisión diferida requiere motivo y mueve la orden a `on_hold`.
-- Una decisión rechazada cierra la orden sin reparación.
-- Solo se entrega con saldo pagado o expresamente condonado.
+- Una decisión diferida requiere motivo y mueve la orden a `on_hold`. El motivo también se copia a notas internas y queda en la bitácora y el historial.
+- Una decisión rechazada mueve la orden directamente a `awaiting_withdrawal`, sin reparación.
+- Solo se avanza desde `payment` a `awaiting_withdrawal` con el saldo pagado o expresamente condonado.
+- El campo **Recibido por** se completa al entregar el equipo desde `awaiting_withdrawal`; esa entrega cierra la orden.
+- En reparación solo pueden seleccionarse repuestos agregados previamente durante la evaluación técnica y con inventario suficiente.
+- Los módulos de detalle son colapsables. La etapa activa se abre automáticamente; las etapas inactivas, Fotos, Notas internas e Historial se mantienen compactos hasta que el usuario los abra.
+- Los borradores de formularios se conservan al cambiar de pestaña del navegador y al contraer un módulo.
 - Las correcciones hacia atrás son limitadas y requieren una nota con el motivo.
 - Una garantía crea otra orden enlazada mediante `warranty_origin_id`; no es una etapa del enum.
 - “Notificar al cliente” registra un timestamp auditado. El envío real de email todavía no está implementado.
@@ -135,22 +139,22 @@ erDiagram
   orders ||--o{ orders : warranty_origin
 ```
 
-| Tabla                   | Descripción                                                                             |
-| ----------------------- | --------------------------------------------------------------------------------------- |
-| `profiles`              | Perfil del usuario Auth: nombre, email y estado activo.                                 |
-| `user_roles`            | Roles `cliente`, `administrativo`, `tecnico` y `super`.                                 |
-| `customers`             | Cliente y datos de contacto; identificación opcional pero única si se informa.          |
-| `equipment`             | Activo independiente; serie opcional pero única si se informa.                          |
-| `orders`                | Agregado principal: cliente/equipo de la visita, condición al recibir, etapa y entrega. |
-| `technical_evaluations` | Diagnóstico y observaciones del técnico.                                                |
-| `budgets`               | Presupuesto único por orden, anticipo y decisión del cliente.                           |
-| `parts`                 | Inventario comercial de repuestos.                                                      |
-| `order_parts`           | Repuestos cotizados o usados, con snapshots de costo y disponibilidad.                  |
-| `repairs`               | Trabajo realizado, técnico y estado de reparación.                                      |
-| `payments`              | Pagos registrados para la orden.                                                        |
-| `order_photos`          | Metadatos de archivos privados en Storage.                                              |
-| `order_notes`           | Bitácora humana interna append-only.                                                    |
-| `audit_log`             | Auditoría técnica generada por triggers.                                                |
+| Tabla                   | Descripción                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `profiles`              | Perfil del usuario Auth: nombre, email y estado activo.                                            |
+| `user_roles`            | Roles `cliente`, `administrativo`, `tecnico` y `super`.                                            |
+| `customers`             | Cliente y datos de contacto; identificación opcional pero única si se informa.                     |
+| `equipment`             | Activo independiente; serie opcional pero única si se informa.                                     |
+| `orders`                | Agregado principal: cliente/equipo de la visita, condición al recibir, etapa y entrega.            |
+| `technical_evaluations` | Diagnóstico y observaciones del técnico.                                                           |
+| `budgets`               | Presupuesto único por orden, costos, anticipo y decisión del cliente.                              |
+| `parts`                 | Inventario comercial de repuestos.                                                                 |
+| `order_parts`           | Repuestos cotizados en evaluación o usados en reparación, con snapshots de costo y disponibilidad. |
+| `repairs`               | Trabajo realizado, técnico y estado de reparación.                                                 |
+| `payments`              | Pagos registrados para la orden.                                                                   |
+| `order_photos`          | Metadatos de archivos privados en Storage.                                                         |
+| `order_notes`           | Bitácora humana interna append-only.                                                               |
+| `audit_log`             | Auditoría técnica de órdenes y módulos relacionados, generada automáticamente por triggers.        |
 
 Los técnicos consultan inventario mediante las vistas restringidas `parts_technician` y `order_parts_technician`; costos, stock y proveedor permanecen protegidos.
 
@@ -243,6 +247,8 @@ Este script:
 4. Inyecta las credenciales locales en Vite.
 5. Inicia la app en `http://localhost:5173`.
 
+`pnpm run dev:local` conserva los datos existentes y aplica las migraciones pendientes, por lo que los cambios de esquema y lógica de base de datos quedan disponibles en el ambiente local. Si la aplicación ya estaba abierta, basta con recargar la página después de actualizar el código.
+
 Credenciales predeterminadas de desarrollo local:
 
 ```text
@@ -255,7 +261,7 @@ Pueden reemplazarse con `ADMIN_EMAIL`, `ADMIN_PASSWORD` y `ADMIN_NAME`. Para rei
 pnpm run dev:local:fresh
 ```
 
-> Los scripts locales usan el stack Supabase local y no deben apuntar a producción.
+> Los scripts locales usan el stack Supabase local y no deben apuntar a producción. `dev:local:fresh` elimina los datos de la base local; `dev:local` no lo hace.
 
 ## Configuración remota
 
@@ -408,7 +414,7 @@ Vite usa `base: "./"` cuando `ELECTRON=true`, pero el wrapper, distribución y a
 - Las fotografías viven en el bucket privado `order-photos` y se entregan con URLs firmadas.
 - Las reglas de flujo se verifican en server functions además de RLS.
 - Los técnicos reciben vistas de inventario sin costos, stock ni proveedor.
-- Los pagos no pueden superar el total del presupuesto.
+- Los anticipos y pagos acumulados no pueden superar el total persistido del presupuesto; la validación se aplica también mediante un trigger transaccional.
 - No commitee `.env`, `.env.local`, `.env.e2e.local` ni `supabase/.temp/`.
 - Si una clave llega al historial Git, rótela antes de usar o publicar el repositorio.
 

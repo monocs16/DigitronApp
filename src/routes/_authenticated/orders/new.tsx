@@ -91,7 +91,7 @@ function NewOrderPage() {
   } | null>(null);
   const { data: equipmentResults = [], isFetching: isSearchingEquipment } = useQuery({
     queryKey: ["equipment-search", equipmentSearch],
-    queryFn: () => equipmentRepository.searchBySerialNumber(equipmentSearch),
+    queryFn: () => equipmentRepository.search(equipmentSearch),
     enabled: equipmentSearch.trim().length >= 2,
   });
 
@@ -176,7 +176,7 @@ function NewOrderPage() {
                         <Input
                           value={clientSearch}
                           onChange={(event) => setClientSearch(event.target.value)}
-                          placeholder="Buscar por nombre o cédula"
+                          placeholder={t("clients.searchPlaceholder")}
                         />
                         {clientSearch.trim().length > 0 && clientSearch.trim().length < 2 && (
                           <p className="text-xs text-muted-foreground">
@@ -206,6 +206,11 @@ function NewOrderPage() {
                                   {client.tax_id && (
                                     <span className="ml-2 text-xs text-muted-foreground">
                                       {client.tax_id}
+                                    </span>
+                                  )}
+                                  {(client.phone1 || client.phone2) && (
+                                    <span className="ml-2 text-xs text-muted-foreground">
+                                      {client.phone1 ?? client.phone2}
                                     </span>
                                   )}
                                 </Button>
@@ -266,7 +271,7 @@ function NewOrderPage() {
                         <Input
                           value={equipmentSearch}
                           onChange={(event) => setEquipmentSearch(event.target.value)}
-                          placeholder="Buscar por número de serie"
+                          placeholder={t("equipmentPage.searchPlaceholder")}
                         />
                         {isSearchingEquipment && (
                           <p className="text-xs text-muted-foreground">{t("common.loading")}</p>

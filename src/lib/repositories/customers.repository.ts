@@ -1,5 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 
+function customerSearchFilter(term: string): string {
+  const pattern = `%${term.trim().replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+  return ["name", "phone1", "phone2", "tax_id"]
+    .map((column) => `${column}.ilike.${pattern}`)
+    .join(",");
+}
+
 export const customersRepository = {
   getAll: async () => {
     const { data, error } = await supabase
@@ -22,13 +29,25 @@ export const customersRepository = {
   search: async (term: string) => {
     const value = term.trim();
     if (value.length < 2) return [];
-    const pattern = `%${value.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
     const { data, error } = await supabase
       .from("customers")
-      .select("id, name, tax_id")
-      .or(`name.ilike.${pattern},tax_id.ilike.${pattern}`)
+      .select("id, name, tax_id, phone1, phone2")
+      .or(customerSearchFilter(value))
       .order("name")
       .limit(20);
+    if (error) throw error;
+    return data;
+  },
+
+  searchWithHistory: async (term: string) => {
+    const value = term.trim();
+    if (!value) return [];
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, name, tax_id, phone1, phone2, orders(id, order_number, stage, intake_at)")
+      .or(customerSearchFilter(value))
+      .order("name")
+      .limit(50);
     if (error) throw error;
     return data;
   },

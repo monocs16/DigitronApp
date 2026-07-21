@@ -4,6 +4,13 @@ import {
   skipIfNoTechnicianSession,
   waitForAuthenticatedShell,
 } from "../helpers/technician-session";
+import {
+  deleteTestCustomer,
+  deleteTestPartByCode,
+  getTestTechnicianId,
+  seedTestCustomerEquipment,
+  seedTestOrder,
+} from "../helpers/seed";
 
 /**
  * Technician role E2E tests.
@@ -29,5 +36,38 @@ test.describe("Technician — access restrictions", () => {
     await skipIfNoTechnicianSession(page);
 
     await expect(page.getByRole("link", { name: labels.orders.newOrder })).not.toBeVisible();
+  });
+
+  test("assigned technician can create an inventory part during evaluation", async ({ page }) => {
+    await skipIfNoTechnicianSession(page);
+    const technicianId = await getTestTechnicianId();
+    const { clientId, equipmentId } = await seedTestCustomerEquipment();
+    const order = await seedTestOrder(
+      clientId,
+      equipmentId,
+      "evaluation",
+      "E2E evaluation part",
+      technicianId,
+    );
+    const partCode = `EVAL-${Date.now()}`;
+
+    try {
+      await page.goto(`/orders/${order.id}`);
+      await page.getByRole("button", { name: "Nuevo repuesto" }).click();
+
+      const dialog = page.getByRole("dialog", { name: "Nuevo repuesto" });
+      await dialog.getByLabel("Código *").fill(partCode);
+      await dialog.getByLabel("Descripción *").fill("Repuesto creado desde evaluación");
+      await expect(dialog.getByLabel("Proveedor")).not.toBeVisible();
+      await expect(dialog.getByLabel("Costo unitario")).not.toBeVisible();
+      await expect(dialog.getByLabel("Stock")).not.toBeVisible();
+      await dialog.getByRole("button", { name: labels.common.save }).click();
+
+      await expect(dialog).not.toBeVisible();
+      await expect(page.getByText(partCode, { exact: false }).first()).toBeVisible();
+    } finally {
+      await deleteTestCustomer(clientId, equipmentId);
+      await deleteTestPartByCode(partCode);
+    }
   });
 });

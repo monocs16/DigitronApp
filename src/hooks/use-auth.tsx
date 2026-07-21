@@ -1,5 +1,13 @@
 /* eslint-disable react-refresh/only-export-components -- AuthProvider and useAuth are intentionally co-located */
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/lib/auth.service";
@@ -37,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [authReady, setAuthReady] = useState(false);
   const [loading, setLoading] = useState(true);
+  const activeUserIdRef = useRef<string | null>(null);
 
   const loadProfile = useCallback(async (uid: string) => {
     const maxAttempts = 6;
@@ -86,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       applySessionInFlight = (async () => {
         setAuthReady(false);
+        activeUserIdRef.current = newSession?.user.id ?? null;
         setSession(newSession);
         if (newSession?.user) {
           await loadProfile(newSession.user.id);
@@ -110,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = authService.onAuthStateChange((event, newSession) => {
       if (event === "TOKEN_REFRESHED") {
+        activeUserIdRef.current = newSession?.user.id ?? null;
         setSession(newSession);
         return;
       }
@@ -118,18 +129,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      setSession(newSession);
-      if (newSession?.user) {
-        setAuthReady(false);
-        void loadProfile(newSession.user.id).finally(() => {
-          if (active) setAuthReady(true);
-        });
-        void qc.invalidateQueries();
-      } else {
+      if (event === "SIGNED_IN" && newSession?.user) {
+        if (activeUserIdRef.current === newSession.user.id) {
+          // Supabase may emit SIGNED_IN again when a browser tab regains focus.
+          // Refresh the token in context without unmounting the authenticated UI.
+          setSession(newSession);
+          return;
+        }
+        qc.clear();
+        void applySession(newSession);
+        return;
+      }
+
+      if (event === "SIGNED_OUT" || !newSession) {
+        activeUserIdRef.current = null;
+        setSession(null);
         setProfile(null);
         setRoles([]);
         setAuthReady(true);
+        setLoading(false);
+        qc.clear();
+        return;
       }
+
+      activeUserIdRef.current = newSession.user.id;
+      setSession(newSession);
+      if (event === "USER_UPDATED") void loadProfile(newSession.user.id);
     });
 
     void authService.getSession().then(({ data }) => {

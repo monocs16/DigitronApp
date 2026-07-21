@@ -57,13 +57,13 @@ function EquipmentPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<EquipmentRow | null>(null);
 
-  const [serial, setSerial] = useState("");
-  const [searchedSerial, setSearchedSerial] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [submittedSearch, setSubmittedSearch] = useState("");
 
   const { data: history = [], isFetching: historyLoading } = useQuery({
-    queryKey: ["equipment-history", searchedSerial],
-    enabled: searchedSerial.length > 0,
-    queryFn: () => equipmentRepository.getBySerialNumber(searchedSerial),
+    queryKey: ["equipment-history", submittedSearch],
+    enabled: submittedSearch.length > 0,
+    queryFn: () => equipmentRepository.searchWithHistory(submittedSearch),
   });
 
   const del = useMutation({
@@ -91,7 +91,7 @@ function EquipmentPage() {
         )}
       </PageHeader>
 
-      <Card>
+      <Card data-testid="equipment-search-card">
         <CardHeader>
           <CardTitle className="text-base">{t("equipmentPage.historyLookup")}</CardTitle>
         </CardHeader>
@@ -100,15 +100,16 @@ function EquipmentPage() {
             className="flex items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              setSearchedSerial(serial.trim());
+              setSubmittedSearch(searchTerm.trim());
             }}
           >
             <div className="flex-1 space-y-2">
-              <Label>{t("equipmentPage.serialNumber")}</Label>
+              <Label htmlFor="equipment-search">{t("equipmentPage.searchLabel")}</Label>
               <Input
-                value={serial}
-                onChange={(e) => setSerial(e.target.value)}
-                placeholder={t("equipmentPage.serialLookupPlaceholder")}
+                id="equipment-search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={t("equipmentPage.searchPlaceholder")}
               />
             </div>
             <Button type="submit">
@@ -117,7 +118,7 @@ function EquipmentPage() {
             </Button>
           </form>
 
-          {searchedSerial && (
+          {submittedSearch && (
             <AsyncCardBody
               isLoading={historyLoading}
               isEmpty={history.length === 0}

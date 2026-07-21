@@ -1,5 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 
+function equipmentSearchFilter(term: string): string {
+  const pattern = `%${term.trim().replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+  return ["model", "serial_number", "brand"]
+    .map((column) => `${column}.ilike.${pattern}`)
+    .join(",");
+}
+
 export const equipmentRepository = {
   getAll: async () => {
     const { data, error } = await supabase
@@ -12,23 +19,29 @@ export const equipmentRepository = {
     return data;
   },
 
-  getBySerialNumber: async (serial: string) => {
+  searchWithHistory: async (term: string) => {
+    const value = term.trim();
+    if (!value) return [];
     const { data, error } = await supabase
       .from("equipment")
       .select("id, type, brand, model, serial_number, orders(id, order_number, stage, intake_at)")
-      .ilike("serial_number", `%${serial}%`);
+      .or(equipmentSearchFilter(value))
+      .order("brand")
+      .order("model")
+      .limit(50);
     if (error) throw error;
     return data;
   },
 
-  searchBySerialNumber: async (term: string) => {
+  search: async (term: string) => {
     const value = term.trim();
     if (value.length < 2) return [];
     const { data, error } = await supabase
       .from("equipment")
       .select("id, type, brand, model, serial_number")
-      .ilike("serial_number", `%${value}%`)
-      .order("serial_number")
+      .or(equipmentSearchFilter(value))
+      .order("brand")
+      .order("model")
       .limit(20);
     if (error) throw error;
     return data;

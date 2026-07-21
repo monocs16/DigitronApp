@@ -44,7 +44,7 @@ describe("STAGE_TRANSITIONS completeness", () => {
       "on_hold",
       "repair",
       "payment",
-      "delivered",
+      "awaiting_withdrawal",
       "closed",
     ];
     for (const s of stages) {
@@ -80,8 +80,8 @@ describe("canTransition — valid progressions", () => {
     expect(canTransition("customer_decision", "on_hold", adminCtx())).toBe(true);
   });
 
-  it("customer_decision → closed (admin)", () => {
-    expect(canTransition("customer_decision", "closed", adminCtx())).toBe(true);
+  it("customer_decision → awaiting_withdrawal after rejection (admin)", () => {
+    expect(canTransition("customer_decision", "awaiting_withdrawal", adminCtx())).toBe(true);
   });
 
   it("on_hold → customer_decision (admin)", () => {
@@ -96,12 +96,14 @@ describe("canTransition — valid progressions", () => {
     expect(canTransition("repair", "payment", adminCtx())).toBe(false);
   });
 
-  it("payment → delivered when balance settled (admin)", () => {
-    expect(canTransition("payment", "delivered", adminCtx({ balanceSettled: true }))).toBe(true);
+  it("payment → awaiting_withdrawal when balance settled (admin)", () => {
+    expect(
+      canTransition("payment", "awaiting_withdrawal", adminCtx({ balanceSettled: true })),
+    ).toBe(true);
   });
 
-  it("delivered → closed (admin)", () => {
-    expect(canTransition("delivered", "closed", adminCtx())).toBe(true);
+  it("awaiting_withdrawal → closed (admin)", () => {
+    expect(canTransition("awaiting_withdrawal", "closed", adminCtx())).toBe(true);
   });
 });
 
@@ -155,14 +157,26 @@ describe("canTransition — data gates", () => {
     );
   });
 
-  it("delivered gate blocks when balance not settled", () => {
-    expect(canTransition("payment", "delivered", adminCtx({ balanceSettled: false }))).toBe(false);
+  it("awaiting withdrawal gate blocks unpaid orders leaving payment", () => {
+    expect(
+      canTransition("payment", "awaiting_withdrawal", adminCtx({ balanceSettled: false })),
+    ).toBe(false);
+  });
+
+  it("awaiting withdrawal remains available for a rejected budget with a balance", () => {
+    expect(
+      canTransition(
+        "customer_decision",
+        "awaiting_withdrawal",
+        adminCtx({ budgetApproved: false, balanceSettled: false }),
+      ),
+    ).toBe(true);
   });
 
   it("gateAllows returns true for stages with no specific gate", () => {
-    expect(gateAllows("evaluation", adminCtx())).toBe(true);
-    expect(gateAllows("budget", adminCtx())).toBe(true);
-    expect(gateAllows("closed", adminCtx())).toBe(true);
+    expect(gateAllows("intake", "evaluation", adminCtx())).toBe(true);
+    expect(gateAllows("evaluation", "budget", adminCtx())).toBe(true);
+    expect(gateAllows("awaiting_withdrawal", "closed", adminCtx())).toBe(true);
   });
 });
 

@@ -11,7 +11,7 @@ const DISPLAY_STAGES: OrderStage[] = [
   "customer_decision",
   "repair",
   "payment",
-  "delivered",
+  "awaiting_withdrawal",
   "closed",
 ];
 
