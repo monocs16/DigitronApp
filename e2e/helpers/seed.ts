@@ -189,15 +189,25 @@ export async function seedTestBudget(
   }> = {},
 ): Promise<void> {
   const { apiUrl, serviceRoleKey } = loadE2eSupabaseEnv();
-  await postRow(apiUrl, serviceRoleKey, "budgets", {
-    order_id: orderId,
-    labor_cost: 10000,
-    parts_cost: 0,
-    freight_cost: 0,
-    other_charges: 0,
-    advances: 0,
-    ...values,
+  const response = await fetch(`${apiUrl}/rest/v1/budgets?on_conflict=order_id`, {
+    method: "POST",
+    headers: {
+      ...adminHeaders(serviceRoleKey),
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify({
+      order_id: orderId,
+      labor_cost: 10000,
+      parts_cost: 0,
+      freight_cost: 0,
+      other_charges: 0,
+      advances: 0,
+      ...values,
+    }),
   });
+  if (!response.ok) {
+    throw new Error(`seed budgets: ${response.status} ${await response.text()}`);
+  }
 }
 
 export async function seedTestPayment(
