@@ -18,7 +18,9 @@ export async function createIntakeOrderFromSeed(page: Page): Promise<{
   await gotoNewOrderForm(page);
   await page.getByPlaceholder("Ingrese nombre, teléfono o cédula…").fill(customerName);
   await page.getByRole("button").filter({ hasText: customerName }).click();
-  await page.getByPlaceholder("Ingrese modelo, serie o marca…").fill(serialNumber);
+  await page
+    .getByRole("textbox", { name: `${labels.form.equipment} *`, exact: true })
+    .fill(serialNumber);
   const equipmentOption = page.getByRole("button").filter({ hasText: serialNumber });
   await expect(equipmentOption).toBeVisible();
   await equipmentOption.click();

@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 function equipmentSearchFilter(term: string): string {
   const pattern = `%${term.trim().replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
-  return ["model", "serial_number", "brand"]
+  return ["description", "model", "serial_number", "brand"]
     .map((column) => `${column}.ilike.${pattern}`)
     .join(",");
 }
@@ -12,7 +12,7 @@ export const equipmentRepository = {
     const { data, error } = await supabase
       .from("equipment")
       .select(
-        "id, type, brand, model, serial_number, purchase_invoice, purchase_store, purchase_date",
+        "id, type, brand, model, description, serial_number, purchase_invoice, purchase_store, purchase_date",
       )
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -81,6 +81,7 @@ export const equipmentRepository = {
     type: string;
     brand: string;
     model: string;
+    description: string | null;
     serial_number: string | null;
     purchase_invoice: string | null;
     purchase_store: string | null;
@@ -103,6 +104,7 @@ export const equipmentRepository = {
       type: string;
       brand: string;
       model: string;
+      description: string | null;
       serial_number: string | null;
       purchase_invoice: string | null;
       purchase_store: string | null;

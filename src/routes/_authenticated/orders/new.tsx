@@ -268,11 +268,13 @@ function NewOrderPage() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <Input
-                          value={equipmentSearch}
-                          onChange={(event) => setEquipmentSearch(event.target.value)}
-                          placeholder={t("equipmentPage.searchPlaceholder")}
-                        />
+                        <FormControl>
+                          <Input
+                            value={equipmentSearch}
+                            onChange={(event) => setEquipmentSearch(event.target.value)}
+                            placeholder={t("equipmentPage.searchPlaceholder")}
+                          />
+                        </FormControl>
                         {isSearchingEquipment && (
                           <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
                         )}

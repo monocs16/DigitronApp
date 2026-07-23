@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { equipmentRepository } from "@/lib/repositories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ export type EquipmentEditing = {
   type: string;
   brand: string;
   model: string;
+  description: string | null;
   serial_number: string | null;
   purchase_invoice: string | null;
   purchase_store: string | null;
@@ -39,6 +41,7 @@ const equipmentSchema = z.object({
   type: z.string().min(1, "Type is required"),
   brand: z.string().min(1, "Brand is required"),
   model: z.string().min(1, "Model is required"),
+  description: z.string().max(2000),
   serial_number: z.string(),
   purchase_invoice: z.string(),
   purchase_store: z.string(),
@@ -58,6 +61,7 @@ const EMPTY: EquipmentFormValues = {
   type: "",
   brand: "",
   model: "",
+  description: "",
   serial_number: "",
   purchase_invoice: "",
   purchase_store: "",
@@ -91,6 +95,7 @@ export function EquipmentFormDialog({
               type: editing.type,
               brand: editing.brand,
               model: editing.model,
+              description: editing.description ?? "",
               serial_number: editing.serial_number ?? "",
               purchase_invoice: editing.purchase_invoice ?? "",
               purchase_store: editing.purchase_store ?? "",
@@ -107,6 +112,7 @@ export function EquipmentFormDialog({
         type: values.type.trim(),
         brand: values.brand.trim(),
         model: values.model.trim(),
+        description: values.description.trim() || null,
         serial_number: values.serial_number.trim() || null,
         purchase_invoice: values.purchase_invoice.trim() || null,
         purchase_store: values.purchase_store.trim() || null,
@@ -191,6 +197,19 @@ export function EquipmentFormDialog({
                     <FormLabel>{t("equipmentPage.serialNumber")}</FormLabel>
                     <FormControl>
                       <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>{t("equipmentPage.description")}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
