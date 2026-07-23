@@ -36,6 +36,7 @@ type EquipmentRow = {
   type: string;
   brand: string;
   model: string;
+  description: string | null;
   serial_number: string | null;
   purchase_invoice: string | null;
   purchase_store: string | null;
@@ -184,6 +185,7 @@ function EquipmentPage() {
                   <TableHead>{t("equipmentPage.type")}</TableHead>
                   <TableHead>{t("equipmentPage.brand")}</TableHead>
                   <TableHead>{t("equipmentPage.model")}</TableHead>
+                  <TableHead>{t("equipmentPage.description")}</TableHead>
                   <TableHead>{t("equipmentPage.serial")}</TableHead>
                   <TableHead className="w-[120px] text-right">{t("common.actions")}</TableHead>
                 </TableRow>
@@ -194,6 +196,9 @@ function EquipmentPage() {
                     <TableCell className="font-medium">{e.type}</TableCell>
                     <TableCell>{e.brand}</TableCell>
                     <TableCell>{e.model}</TableCell>
+                    <TableCell className="max-w-xs whitespace-pre-wrap">
+                      {e.description ?? t("common.noData")}
+                    </TableCell>
                     <TableCell className="font-mono text-xs">
                       {e.serial_number ?? t("common.noData")}
                     </TableCell>

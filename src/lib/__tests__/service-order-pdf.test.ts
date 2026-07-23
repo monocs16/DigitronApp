@@ -23,4 +23,21 @@ describe("service-order PDF values", () => {
 
     expect(values.state).toBe("Scratched screen and dent on the left side");
   });
+
+  it("prints the revision payment in Observaciones", () => {
+    const values = buildServiceOrderPdfValues(
+      {
+        order_number: "47721",
+        created_at: "2026-07-19T12:00:00.000Z",
+        reported_fault: "Does not power on",
+        received_accessories: null,
+        equipment_condition: "Good condition",
+        customers: null,
+        equipment: null,
+      },
+      5_000,
+    );
+
+    expect(values.observations).toBe("Cancela 5 000,00 CRC de revision");
+  });
 });

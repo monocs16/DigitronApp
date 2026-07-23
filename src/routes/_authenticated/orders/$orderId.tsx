@@ -616,7 +616,7 @@ function OrderDetailPage() {
   const canEditRepair = !isClosed && (isSuper || (isTecnico && isAssigned));
   const canEditPayments = !isClosed && (isSuper || isAdministrativo);
   const canAssignTech = !isClosed && (isSuper || isAdministrativo);
-  const canEditNotes = !isClosed && (isSuper || isAdministrativo || isAssigned);
+  const canEditNotes = isSuper || isAdministrativo || isAssigned;
   const ownerAdmin = !isClosed && (isSuper || isAdministrativo);
   const ownerTechAssigned = !isClosed && (isSuper || (isTecnico && isAssigned));
   const previousStages =

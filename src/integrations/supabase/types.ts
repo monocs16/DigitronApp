@@ -175,6 +175,7 @@ export type Database = {
         Row: {
           brand: string;
           created_at: string;
+          description: string | null;
           id: string;
           model: string;
           purchase_date: string | null;
@@ -186,6 +187,7 @@ export type Database = {
         Insert: {
           brand: string;
           created_at?: string;
+          description?: string | null;
           id?: string;
           model: string;
           purchase_date?: string | null;
@@ -197,6 +199,7 @@ export type Database = {
         Update: {
           brand?: string;
           created_at?: string;
+          description?: string | null;
           id?: string;
           model?: string;
           purchase_date?: string | null;

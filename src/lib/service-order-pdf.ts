@@ -38,7 +38,7 @@ function formatAdvance(advance: number) {
   })
     .format(advance)
     .replaceAll(/\s/g, " ");
-  return `Cliente da un anticipo de ${amount} colones.`;
+  return `Cancela ${amount} CRC de revision`;
 }
 
 export function buildServiceOrderPdfValues(order: ServiceOrderPdfData, advance: number) {
