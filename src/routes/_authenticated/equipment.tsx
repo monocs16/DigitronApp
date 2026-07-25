@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Pencil, ClipboardList, Search } from "lucide-react";
+import { Plus, Pencil, ClipboardList, Search, AlertCircle } from "lucide-react";
 import { equipmentRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -50,7 +51,13 @@ function EquipmentPage() {
   const mayCreate = canCreate(roles, "equipo");
   const mayEdit = canEdit(roles, "equipo");
 
-  const { data: equipment = [], isLoading } = useQuery({
+  const {
+    data: equipment = [],
+    error: equipmentError,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["equipment"],
     queryFn: () => equipmentRepository.getAll() as Promise<EquipmentRow[]>,
   });
@@ -174,65 +181,84 @@ function EquipmentPage() {
           <CardTitle className="text-base">{t("equipmentPage.inventory")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <AsyncCardBody
-            isLoading={isLoading}
-            isEmpty={equipment.length === 0}
-            emptyMessage={t("equipmentPage.empty")}
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("equipmentPage.type")}</TableHead>
-                  <TableHead>{t("equipmentPage.brand")}</TableHead>
-                  <TableHead>{t("equipmentPage.model")}</TableHead>
-                  <TableHead>{t("equipmentPage.description")}</TableHead>
-                  <TableHead>{t("equipmentPage.serial")}</TableHead>
-                  <TableHead className="w-[120px] text-right">{t("common.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {equipment.map((e) => (
-                  <TableRow key={e.id}>
-                    <TableCell className="font-medium">{e.type}</TableCell>
-                    <TableCell>{e.brand}</TableCell>
-                    <TableCell>{e.model}</TableCell>
-                    <TableCell className="max-w-xs whitespace-pre-wrap">
-                      {e.description ?? t("common.noData")}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {e.serial_number ?? t("common.noData")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild variant="ghost" size="icon" title={t("common.viewOrders")}>
-                        <Link to="/orders" search={{ equipmentId: e.id }}>
-                          <ClipboardList className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      {mayEdit && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditing(e);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {mayEdit && (
-                        <DeleteConfirmButton
-                          title={t("equipmentPage.deleteTitle")}
-                          description={t("common.cannotUndo")}
-                          onConfirm={() => del.mutate(e.id)}
-                        />
-                      )}
-                    </TableCell>
+          {equipmentError ? (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle>{t("errorPage.title")}</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>{equipmentError.message}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isFetching}
+                  onClick={() => void refetch()}
+                >
+                  {t("common.retry")}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <AsyncCardBody
+              isLoading={isLoading}
+              isEmpty={equipment.length === 0}
+              emptyMessage={t("equipmentPage.empty")}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("equipmentPage.type")}</TableHead>
+                    <TableHead>{t("equipmentPage.brand")}</TableHead>
+                    <TableHead>{t("equipmentPage.model")}</TableHead>
+                    <TableHead>{t("equipmentPage.description")}</TableHead>
+                    <TableHead>{t("equipmentPage.serial")}</TableHead>
+                    <TableHead className="w-[120px] text-right">{t("common.actions")}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </AsyncCardBody>
+                </TableHeader>
+                <TableBody>
+                  {equipment.map((e) => (
+                    <TableRow key={e.id}>
+                      <TableCell className="font-medium">{e.type}</TableCell>
+                      <TableCell>{e.brand}</TableCell>
+                      <TableCell>{e.model}</TableCell>
+                      <TableCell className="max-w-xs whitespace-pre-wrap">
+                        {e.description ?? t("common.noData")}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {e.serial_number ?? t("common.noData")}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild variant="ghost" size="icon" title={t("common.viewOrders")}>
+                          <Link to="/orders" search={{ equipmentId: e.id }}>
+                            <ClipboardList className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        {mayEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditing(e);
+                              setDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {mayEdit && (
+                          <DeleteConfirmButton
+                            title={t("equipmentPage.deleteTitle")}
+                            description={t("common.cannotUndo")}
+                            onConfirm={() => del.mutate(e.id)}
+                          />
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </AsyncCardBody>
+          )}
         </CardContent>
       </Card>
 

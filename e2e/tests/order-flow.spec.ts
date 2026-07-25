@@ -184,9 +184,10 @@ test.describe("Admin — order detail stage actions", () => {
       await gotoOrderDetail(page, order.id);
       await expandOrderModule(page, "history-card");
 
-      await expect(page.getByText("Evaluación técnica registrada", { exact: true })).toBeVisible({
-        timeout: 15_000,
-      });
+      const historyCard = page.getByTestId("history-card");
+      await expect(
+        historyCard.getByText("Evaluación técnica registrada", { exact: true }),
+      ).toBeVisible({ timeout: 15_000 });
     } finally {
       await deleteTestCustomer(clientId, equipmentId);
     }
@@ -210,11 +211,14 @@ test.describe("Admin — order detail stage actions", () => {
       await expandOrderModule(page, "internal-notes-card");
       await expandOrderModule(page, "history-card");
 
+      const internalNotesCard = page.getByTestId("internal-notes-card");
       await expect(
-        page.getByText(`Motivo de diferimiento: ${reason}`, { exact: true }),
+        internalNotesCard.getByText(`Motivo de diferimiento: ${reason}`, { exact: true }),
       ).toBeVisible({ timeout: 15_000 });
+
+      const historyCard = page.getByTestId("history-card");
       await expect(
-        page.getByText(`Motivo de diferimiento registrado: ${reason}`, { exact: true }),
+        historyCard.getByText(`Motivo de diferimiento registrado: ${reason}`, { exact: true }),
       ).toBeVisible();
     } finally {
       await deleteTestCustomer(clientId, equipmentId);
@@ -307,8 +311,8 @@ test.describe("Admin — order detail stage actions", () => {
 
     try {
       const part = await seedTestPart(partCode, 2);
-      await seedTestOrderPart(order.id, part.id, "quoted", 1);
       await seedTestBudget(order.id, { labor_cost: 5000, parts_cost: 1000, advances: 1000 });
+      await seedTestOrderPart(order.id, part.id, "quoted", 1);
       await gotoOrderDetail(page, order.id);
 
       await page.getByRole("combobox", { name: "Repuestos usados" }).click();
@@ -335,7 +339,8 @@ test.describe("Admin — order detail stage actions", () => {
       await gotoOrderDetail(page, order.id);
       await expandOrderModule(page, "budget-card");
 
-      await page.getByRole("spinbutton", { name: "Mano de obra" }).fill("6000");
+      const budgetCard = page.getByTestId("budget-card");
+      await budgetCard.getByRole("spinbutton", { name: "Mano de obra" }).fill("6000");
 
       const paymentsCard = page.getByTestId("payments-card");
       await expect(
