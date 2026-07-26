@@ -9,10 +9,10 @@ Guía de arquitectura y convenciones para desarrollar Digitron App. Para el proc
 Digitron es una aplicación full-stack en un único repositorio:
 
 - React 19, TanStack Start y TanStack Router forman el frontend y el servidor SSR.
-- Las server functions de TanStack son la API interna RPC; no hay una API REST ni Edge Functions para el flujo normal.
+- Las server functions de TanStack son la API interna RPC sensible. No hay una API REST propia ni Edge Functions para el flujo normal; los repositorios del navegador sí consumen Supabase Data API/PostgREST.
 - Supabase aporta Postgres, Auth y Storage.
 - La autorización real vive en RLS y se complementa con validaciones de servidor y gates de UI.
-- El build puede ejecutarse en Cloudflare Workers con `nodejs_compat` o en Vercel mediante Nitro.
+- Producción se despliega automáticamente en Vercel/Nitro; Cloudflare Workers con `nodejs_compat` continúa como destino alternativo soportado.
 - El navegador y el servidor comparten tipos, pero no todos los módulos pueden cruzar el límite del bundle.
 
 Regla central: una operación sensible debe ejecutarse con identidad autenticada, validación de entrada y autorización server-side. Ocultar un botón nunca sustituye a RLS.
@@ -112,7 +112,7 @@ type OrderStage =
   | "on_hold"
   | "repair"
   | "payment"
-  | "delivered"
+  | "awaiting_withdrawal"
   | "closed";
 ```
 
@@ -128,14 +128,18 @@ type OrderStage =
 Gates vigentes:
 
 - Entrar a `repair` requiere `budget.decision === "approved"`.
-- Entrar a `delivered` requiere saldo cubierto o `balance_waived`.
+- Avanzar de `payment` a `awaiting_withdrawal` requiere saldo cubierto o `balance_waived`.
 - Un técnico no-super solo actúa en una orden asignada a él.
 
 Las transiciones deben pasar por `orders.functions.ts`. No agregue un `ordersRepository.updateStage()` que permita saltarse la máquina de estados.
 
 ### Decisiones y ramas
 
-`approved`, `deferred` y `rejected` enrutan automáticamente a `repair`, `on_hold` y `closed`. El diferimiento exige motivo. La garantía no es una etapa: `createWarrantyOrder` crea otra orden enlazada por `warranty_origin_id` desde una orden entregada o cerrada.
+`approved`, `deferred` y `rejected` enrutan automáticamente a `repair`, `on_hold` y `awaiting_withdrawal`. El diferimiento exige motivo, lo persiste en el presupuesto y lo copia a notas internas para que también aparezca en el historial.
+
+Una orden rechazada sigue abierta hasta que el cliente retire el equipo. `deliverOrder` exige `received_by`, registra `delivery_at` y notas de cierre opcionales, y mueve `awaiting_withdrawal → closed`.
+
+La garantía no es una etapa: `createWarrantyOrder` crea otra orden enlazada por `warranty_origin_id`, pero solo acepta una orden origen en `closed`. La capacidad existe en servidor; no suponga que toda ruta ya expone una acción de UI para invocarla.
 
 ---
 
@@ -156,14 +160,28 @@ Las consultas protegidas actuales se realizan principalmente desde componentes m
 
 ### Repositorios del navegador
 
-`src/lib/repositories/` centraliza operaciones normales con `@/integrations/supabase/client`. Estas llamadas usan la sesión del navegador y respetan RLS.
+`src/lib/repositories/` centraliza operaciones normales con `@/integrations/supabase/client`. `supabase-js` convierte estas llamadas en requests a Supabase Data API/PostgREST con la sesión del navegador; RLS define el alcance real.
+
+Ejemplo concreto del inventario de equipos:
+
+```text
+src/routes/_authenticated/equipment.tsx
+  useQuery(["equipment"])
+    → equipmentRepository.getAll()
+      → supabase.from("equipment").select(...)
+        → Supabase Data API/PostgREST
+```
+
+No existe un endpoint REST propio ni una server function para esa lectura. La consulta selecciona `description`, por lo que el proyecto consultado debe tener aplicada `20260723000631_add_equipment_description.sql`.
 
 Responsabilidades:
 
 - Selecciones consistentes y relaciones requeridas por la UI.
-- Manejo uniforme de `data`/`error`.
+- Propagar los errores de Supabase; no convertirlos en una colección vacía.
 - Operaciones de Storage y URLs firmadas.
 - No contener service role ni importar módulos `.server`.
+
+La pantalla consumidora debe tratar por separado loading, empty y error. Un error accionable muestra el mensaje seguro y un reintento; un fallo de consulta nunca debe hacer parecer que la tabla realmente está vacía.
 
 Los repositorios no reemplazan las server functions cuando una regla necesita:
 
@@ -210,7 +228,7 @@ Reglas:
 
 ### Service role
 
-La gestión de usuarios en `users.functions.ts` es el caso privilegiado actual:
+Dentro del runtime de la aplicación, la gestión de usuarios en `users.functions.ts` es el caso privilegiado actual:
 
 1. La función exige sesión mediante `requireSupabaseAuth`.
 2. `assertSuper` verifica el rol `super`.
@@ -240,18 +258,31 @@ Nunca:
 
 RLS debe habilitarse en toda tabla operativa nueva antes de conceder acceso a `authenticated`.
 
+El orden de entrega para código dependiente del esquema es:
+
+1. Crear y probar la migración local.
+2. Regenerar los tipos Supabase desde el esquema migrado.
+3. Verificar RLS y, para tablas nuevas, grants/exposición en Data API.
+4. Aplicar la migración al proyecto remoto correcto.
+5. Verificar una consulta real contra ese proyecto.
+6. Desplegar el código que selecciona la columna o tabla nueva.
+
+GitHub CD **no** ejecuta `supabase db push`. Si la UI reporta `Could not find '<column>' ... in the schema cache`, compare `supabase migration list` y el esquema remoto: normalmente el frontend fue desplegado antes que la migración. No lo “corrija” ocultando el error ni convirtiéndolo en un estado vacío.
+
 ### Integridad vigente
 
 - `customers.tax_id` y `equipment.serial_number` son opcionales, pero únicos si contienen valor, normalizados con trim/lowercase.
 - `equipment` no pertenece permanentemente a un cliente; la relación de cada visita vive en `orders`.
+- `equipment.description` es texto opcional; el formulario limita 2000 caracteres y las búsquedas combinan descripción, marca, modelo y serie.
 - `received_accessories` pertenece a la orden, no al equipo.
 - `equipment_condition` captura el estado físico/funcional al recibirlo y alimenta el campo `Estado` del PDF.
 - `budgets` es uno-a-uno con la orden.
 - `order_notes` es append-only y se diferencia de `audit_log`.
 - El costo y disponibilidad de `order_parts` se capturan dentro de Postgres.
-- Insertar una pieza `used` descuenta stock; eliminarla lo restaura.
-- Las piezas `quoted` sincronizan `budgets.parts_cost`.
-- Los pagos no pueden superar presupuesto menos anticipos/pagos previos.
+- Un técnico asignado puede proponer un repuesto durante `evaluation`; se crea ligado por `created_from_order_id`, con costo y stock cero y sin proveedor hasta que administración complete los datos comerciales.
+- Insertar una pieza `used` requiere una línea `quoted` previa para esa orden, descuenta stock de forma condicional y concurrente, y eliminarla lo restaura.
+- Solo los cambios en piezas `quoted` sincronizan `budgets.parts_cost`; una pieza `used` nunca recalcula ni altera el presupuesto aprobado.
+- Los pagos usan el presupuesto persistido, no los valores sin guardar del formulario, y no pueden superar presupuesto menos anticipos/pagos previos.
 - La numeración de órdenes continúa la secuencia numérica histórica posterior a `47719` bajo advisory lock.
 
 ### Privacidad de inventario
@@ -260,7 +291,9 @@ La tabla base `parts` contiene stock, costo y proveedor y solo es legible por ad
 
 ### Auditoría
 
-`audit_log` es el registro técnico generado por triggers. `order_notes` es el registro humano legible. Una corrección de etapa primero inserta la razón en notas y luego actualiza la orden.
+`audit_log` es el registro técnico generado por triggers. `order_notes` es el registro humano legible y usuarios autorizados pueden seguir agregando notas después del cierre. Una corrección de etapa primero inserta la razón en notas y luego actualiza la orden.
+
+El trigger conserva `record_pk.order_id` para registros hijos. `auditRepository` reúne cambios de orden, evaluación, presupuesto, reparación, pagos, repuestos, fotos y notas, y mantiene compatibilidad con entradas históricas cuyo `order_id` solo estaba en el snapshot anterior/nuevo. El motivo de diferimiento se copia a notas y aparece junto con el cambio de decisión en el historial.
 
 Mantenga triggers de auditoría en nuevas tablas operativas cuando corresponda. No permita que usuarios normales escriban directamente en `audit_log`.
 
@@ -301,6 +334,8 @@ Si cambia este flujo, pruebe tanto el trigger de creación como las funciones ad
 - Conserva los campos editables, sin flatten.
 - Completa las copias de cliente y Digitron.
 - Normaliza caracteres incompatibles con WinAnsi.
+- Usa `equipment_condition` para el campo `Estado`.
+- Registra un anticipo positivo como `Cancela <monto> CRC de revision` en `Observaciones`; si no hay anticipo, indica que no se registró.
 - Se descarga al crear la orden y puede reimprimirse desde el detalle.
 
 Los reportes usan jsPDF y jspdf-autotable. Si cambia una etiqueta de etapa o moneda, revise ambos mecanismos de PDF y las traducciones.
@@ -315,7 +350,7 @@ La acción “notificar cliente” solo guarda `decision_notified_at` o `deliver
 - Use React Hook Form con Zod para formularios.
 - Use TanStack Query para estado remoto; no duplique datos de base en Redux/Zustand.
 - Use `date-fns` para fechas y `sonner` para feedback.
-- Mantenga loading, empty, error y disabled states accesibles.
+- Mantenga loading, empty, error y disabled states accesibles. Los errores de consulta deben incluir contexto seguro y reintento cuando la operación sea repetible.
 - Los textos visibles deben pasar por i18next cuando exista o corresponda una clave reutilizable.
 - Código, nombres y comentarios técnicos en inglés; UI en español y traducción inglesa en `src/locales/en.ts`.
 
@@ -355,11 +390,56 @@ Compruebe siempre compatibilidad con Workers y `nodejs_compat`.
 
 ### Vercel
 
-`pnpm run build:vercel` establece `DEPLOY_TARGET=vercel`, omite el plugin Cloudflare y activa Nitro con preset Vercel. Cambios del entry o de variables runtime deben validarse en ambos destinos.
+`pnpm run build:vercel` establece `DEPLOY_TARGET=vercel`, omite el plugin Cloudflare y activa Nitro con preset Vercel. Es el equivalente local del destino automatizado de producción.
+
+El pipeline remoto es secuencial:
+
+1. `.github/workflows/ci.yml` valida instalación congelada, tipos, lint, auditoría y cobertura.
+2. En un push exitoso a `main`, `.github/workflows/cd.yml` ejecuta Playwright contra Supabase local.
+3. Solo si E2E pasa, CD despliega el SHA exacto a producción mediante una versión fijada de Vercel CLI.
+
+El deploy envía el código fuente para que Vercel construya con su entorno. No aplica migraciones al Supabase remoto; coordine esos cambios antes de fusionar/desplegar código dependiente del esquema. Cambios del entry o de variables runtime deben validarse en Vercel y en cualquier destino Cloudflare afectado.
 
 ### Electron
 
 Cuando `ELECTRON=true`, Vite usa `base: "./"`. Esto prepara assets relativos, pero el wrapper, actualización y distribución Electron todavía están pendientes.
+
+---
+
+## Importación histórica de producción
+
+[`scripts/import-production-orders.mjs`](./scripts/import-production-orders.mjs) es una herramienta de migración puntual para el workbook histórico:
+
+```bash
+node scripts/import-production-orders.mjs <ruta.xlsx>           # dry-run
+node scripts/import-production-orders.mjs <ruta.xlsx> --execute # escritura destructiva
+```
+
+El script valida exactamente las órdenes `47670–47719`, normaliza fechas y seriales placeholder, deduplica clientes, crea un equipo independiente por orden, traduce estados legados y asigna el perfil activo `Technician Digitron`. Acepta un XLSX o su directorio extraído y usa `unzip` del sistema; no introduce una dependencia XLSX al bundle.
+
+`--execute` requiere `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` y reemplaza tablas operativas —incluidos órdenes, equipos, clientes, repuestos y `audit_log`— aunque preserva perfiles Auth y roles. Antes de ejecutarlo:
+
+1. Confirme dos veces el proyecto destino y el perfil técnico.
+2. Obtenga y verifique un respaldo recuperable.
+3. Ejecute el dry-run y revise conteos/etapas.
+4. Reserve una ventana de mantenimiento y valide las órdenes importadas.
+
+No reutilice este script como importador general ni lo ejecute desde el navegador.
+
+---
+
+## Dependencias y cadena de suministro
+
+`pnpm-workspace.yaml` centraliza overrides de dependencias transitivas revisadas por auditoría. El hook local y GitHub CI ejecutan `pnpm audit --audit-level moderate`.
+
+Existe una excepción documentada para el camino de desarrollo ESLint → minimatch 3 → `brace-expansion@1.1.16`: minimatch 3 espera la API CommonJS invocable de v1, mientras v5 exporta `{ expand }`. Forzar globalmente `brace-expansion@5` rompe lint; los consumidores compatibles usan la versión parcheada v5 y el advisory del camino legacy se ignora explícitamente en `auditConfig`.
+
+No elimine ni amplíe una excepción sin:
+
+- Confirmar la ruta con `pnpm why`.
+- Probar typecheck y lint.
+- Ejecutar la auditoría.
+- Documentar por qué el riesgo no llega al runtime y cuál es el plan de salida.
 
 ---
 
@@ -387,9 +467,17 @@ Playwright ejecuta autenticación, flujo de órdenes y restricciones del técnic
 
 ```bash
 pnpm run test:e2e
+pnpm run test:e2e:ui
 ```
 
-`e2e/global-setup.ts` levanta/reinicia el stack local, aplica migraciones, crea usuarios y genera credenciales ignoradas. Los proyectos `admin`, `technician` y `no-auth` usan sesiones separadas. Nunca adapte estos helpers para apuntar silenciosamente a producción.
+Playwright arranca `webServer` antes de `globalSetup`; por eso `scripts/e2e-web-server.sh` asegura que Supabase exista y exporta sus credenciales antes de iniciar Vite. Después, `e2e/global-setup.ts` reinicia la base, reaplica todas las migraciones, crea usuarios y genera credenciales ignoradas. Los proyectos `admin`, `technician` y `no-auth` usan sesiones separadas. Nunca adapte estos helpers para apuntar silenciosamente a producción.
+
+Convenciones derivadas del flujo actual:
+
+- Los módulos del detalle son colapsables. Use los helpers de `e2e/helpers/order-ui.ts` para expandir el módulo antes de interactuar.
+- Acote locators y expectativas al card relevante (`budget-card`, `history-card`, `internal-notes-card`, etc.) para no coincidir con contenido oculto o repetido.
+- Si el escenario necesita un presupuesto con valores específicos, siémbrelo antes de las líneas `quoted`; su trigger puede crear/upsert `budgets`.
+- Pruebe el saldo con datos persistidos. Cambios de presupuesto aún no guardados deben bloquear pagos y no crear un balance aparente.
 
 ### Checklist proporcional al cambio
 
@@ -423,6 +511,8 @@ pnpm run ci:check
 
 Incluye typecheck, lint, auditoría de dependencias y cobertura. `pnpm run test` agrega unitarias y E2E.
 
+`.githooks/pre-push` ejecuta siempre `ci:check`. Si Supabase CLI y Docker están disponibles, también ejecuta E2E; `SKIP_E2E_HOOK=1` omite únicamente E2E. Un salto local no elimina el gate remoto: CD vuelve a ejecutar la suite completa antes de Vercel.
+
 Antes de cerrar un cambio sensible, verifique además:
 
 - Comportamiento con administrativo/super y técnico asignado.
@@ -451,6 +541,11 @@ Antes de cerrar un cambio sensible, verifique además:
 13. Modificar una migración aplicada en lugar de crear una nueva.
 14. Añadir una dependencia Node-only sin verificar Cloudflare Workers.
 15. Commitear `.env`, `.env.local`, `.env.e2e.local`, credenciales o `supabase/.temp/`.
+16. Desplegar una selección de columna nueva antes de aplicar la migración remota y confundir el error de schema cache con una tabla vacía.
+17. Convertir un error de repositorio en `[]` y mostrar un empty state engañoso.
+18. Recalcular el presupuesto al registrar una pieza `used`; solo las líneas `quoted` afectan `parts_cost`.
+19. Escribir un E2E contra contenido colapsado o usar locators globales cuando el mismo texto aparece en varios módulos.
+20. Ejecutar la importación histórica con `--execute` sin validar destino, respaldo y dry-run.
 
 ---
 

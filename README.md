@@ -12,15 +12,15 @@ Sistema web full-stack para gestionar el ciclo completo de las **órdenes de ser
 
 ## Funcionalidad
 
-- Registrar clientes y equipos. Los clientes se buscan por nombre, teléfono o cédula; los equipos por marca, modelo o serie. El equipo es un activo independiente y la orden registra qué cliente lo presenta en cada visita.
+- Registrar clientes y equipos. Los clientes se buscan por nombre, teléfono o cédula; los equipos incluyen una descripción opcional y se buscan por descripción, marca, modelo o serie. El equipo es un activo independiente y la orden registra qué cliente lo presenta en cada visita.
 - Abrir órdenes con cliente, equipo, origen, falla reportada, condición del equipo, accesorios recibidos, técnico y anticipo opcional.
 - Generar y reimprimir la orden de servicio en PDF a partir de la plantilla editable de Digitron.
 - Guiar cada orden por evaluación, presupuesto, decisión del cliente, reparación, pago, espera de retiro y cierre.
 - Cotizar repuestos durante la evaluación —incluyendo crear uno nuevo sin abandonar la orden— y consumir durante la reparación únicamente los repuestos evaluados, con actualización transaccional del inventario.
 - Registrar anticipos y múltiples pagos o métodos de pago sin permitir que excedan el saldo real del presupuesto; el presupuesto aprobado no cambia al consumir un repuesto.
-- Adjuntar fotografías privadas y mantener notas internas append-only.
+- Adjuntar fotografías privadas y mantener notas internas append-only, incluso después del cierre para los roles autorizados.
 - Registrar en historial y auditoría los cambios de evaluación, presupuesto, reparación, pagos, repuestos, notas, fotos, entrega y demás datos operativos.
-- Abrir una nueva orden de garantía enlazada con una orden entregada o cerrada.
+- Crear en servidor una nueva orden de garantía enlazada con una orden cerrada; la acción de UI para invocar esta capacidad todavía está pendiente.
 - Consultar paneles, reportes y exportaciones PDF.
 - Administrar cuentas y roles sin registro público.
 
@@ -34,7 +34,7 @@ Sistema web full-stack para gestionar el ciclo completo de las **órdenes de ser
 | `/orders/new`      | Administrativo, super                                     | Alta de orden y descarga automática de la orden de servicio en PDF.                                                        |
 | `/orders/:orderId` | Según RLS                                                 | Flujo guiado en módulos colapsables: cliente/equipo, evaluación, presupuesto, reparación, pagos, fotos, notas e historial. |
 | `/clients`         | Administrativo, super                                     | Directorio, mantenimiento y búsqueda por nombre, teléfono o cédula.                                                        |
-| `/equipment`       | Lectura técnico; edición administrativo/super             | Activos, historial de servicio y búsqueda por marca, modelo o serie.                                                       |
+| `/equipment`       | Lectura técnico; edición administrativo/super             | Activos con descripción, historial y búsqueda por descripción, marca, modelo o serie; los errores ofrecen reintento.       |
 | `/inventory`       | Lectura restringida técnico; edición administrativo/super | Catálogo, existencias, costos y proveedores.                                                                               |
 | `/reports`         | Administrativo, super                                     | Resúmenes por etapa, técnico y periodo; repuestos y garantías; PDF.                                                        |
 | `/usuarios`        | Super                                                     | Crear, cambiar rol y eliminar usuarios mediante operaciones solo servidor.                                                 |
@@ -112,7 +112,7 @@ Reglas principales:
 - Los módulos de detalle son colapsables. La etapa activa se abre automáticamente; las etapas inactivas, Fotos, Notas internas e Historial se mantienen compactos hasta que el usuario los abra.
 - Los borradores de formularios se conservan al cambiar de pestaña del navegador y al contraer un módulo.
 - Las correcciones hacia atrás son limitadas y requieren una nota con el motivo.
-- Una garantía crea otra orden enlazada mediante `warranty_origin_id`; no es una etapa del enum.
+- Una garantía crea otra orden enlazada mediante `warranty_origin_id`; no es una etapa del enum y la orden origen debe estar en `closed`. Actualmente esta operación está disponible como server function, pero su acción de UI está pendiente.
 - “Notificar al cliente” registra un timestamp auditado. El envío real de email todavía no está implementado.
 
 La fuente canónica del proceso es [`docs/service-order-flow.md`](./docs/service-order-flow.md); las reglas ejecutables están en [`src/lib/state-machine.ts`](./src/lib/state-machine.ts) y [`src/lib/orders.functions.ts`](./src/lib/orders.functions.ts).
@@ -144,7 +144,7 @@ erDiagram
 | `profiles`              | Perfil del usuario Auth: nombre, email y estado activo.                                            |
 | `user_roles`            | Roles `cliente`, `administrativo`, `tecnico` y `super`.                                            |
 | `customers`             | Cliente y datos de contacto; identificación opcional pero única si se informa.                     |
-| `equipment`             | Activo independiente; serie opcional pero única si se informa.                                     |
+| `equipment`             | Activo independiente con descripción libre opcional; serie opcional pero única si se informa.      |
 | `orders`                | Agregado principal: cliente/equipo de la visita, condición al recibir, etapa y entrega.            |
 | `technical_evaluations` | Diagnóstico y observaciones del técnico.                                                           |
 | `budgets`               | Presupuesto único por orden, costos, anticipo y decisión del cliente.                              |
@@ -199,11 +199,23 @@ flowchart TB
   Admin --> DB
 ```
 
-- Las consultas habituales usan repositorios en `src/lib/repositories/` y el cliente Supabase del navegador; RLS aplica el alcance real.
+- Las consultas habituales usan repositorios en `src/lib/repositories/` y el cliente Supabase del navegador; `supabase-js` llama directamente a Data API/PostgREST y RLS aplica el alcance real.
 - Las transiciones y operaciones sensibles usan `createServerFn` con `requireSupabaseAuth`.
 - La gestión de usuarios usa `SUPABASE_SERVICE_ROLE_KEY` exclusivamente dentro de handlers de servidor.
-- No se usan Supabase Edge Functions para la lógica interna.
-- Producción soporta Cloudflare Workers y, alternativamente, Vercel mediante Nitro.
+- No hay endpoints REST propios ni se usan Supabase Edge Functions para la lógica interna.
+- Producción se despliega automáticamente en Vercel/Nitro; Cloudflare Workers permanece como destino alternativo soportado.
+
+### Dónde se consultan los datos
+
+Para equipos, el llamado comienza en [`src/routes/_authenticated/equipment.tsx`](./src/routes/_authenticated/equipment.tsx), donde TanStack Query ejecuta `equipmentRepository.getAll()`. El repositorio está en [`src/lib/repositories/equipment.repository.ts`](./src/lib/repositories/equipment.repository.ts) y hace el `select` sobre `equipment` con el cliente browser de Supabase.
+
+```text
+/equipment → useQuery → equipmentRepository.getAll()
+           → supabase.from("equipment").select(...)
+           → Supabase Data API/PostgREST → Postgres + RLS
+```
+
+Si esa consulta falla, la página muestra el error real y permite reintentar; no presenta el inventario como vacío. Las server functions se reservan para transiciones, decisiones, entrega, garantías y otras reglas sensibles que requieren validación adicional.
 
 ## Stack
 
@@ -275,6 +287,19 @@ pnpm run dev
 
 El `project_id` de `supabase/config.toml` es un placeholder. `supabase link` guarda la referencia real en `supabase/.temp/`, que está ignorado por Git.
 
+### Migraciones y schema cache
+
+El pipeline de despliegue no aplica migraciones al Supabase remoto. Antes de desplegar código que consulta una tabla o columna nueva:
+
+```bash
+supabase migration list
+supabase db push
+```
+
+Después regenere/verifique [`src/integrations/supabase/types.ts`](./src/integrations/supabase/types.ts) y pruebe la consulta contra el proyecto enlazado. La descripción de equipos requiere `20260723000631_add_equipment_description.sql`.
+
+El error `Could not find the '<column>' column ... in the schema cache` suele indicar que el código llegó antes que la migración. No significa que la tabla esté vacía: aplique/verifique la migración y recargue la consulta. Para tablas nuevas, confirme además su exposición/grants de Data API y sus políticas RLS.
+
 ### Variables de entorno
 
 | Variable                        | Alcance       | Uso                                                           |
@@ -325,7 +350,7 @@ digitron-app/
 │   ├── integrations/supabase/      # Clientes, auth middleware y tipos
 │   ├── locales/                    # Traducciones ES/EN
 │   ├── start.ts                    # Middleware global
-│   └── server.ts                   # Entry del Worker
+│   └── server.ts                   # Entry SSR y manejo de errores
 ├── supabase/
 │   ├── migrations/                 # Esquema, RLS, triggers y Storage
 │   ├── seed.sql
@@ -334,6 +359,7 @@ digitron-app/
 ├── e2e/                             # Playwright + fixtures locales
 ├── scripts/                         # Desarrollo, seeds e importación
 ├── public/                          # Assets y plantilla PDF
+├── CLAUDE.md                        # Entrada y reglas específicas para Claude
 ├── ENGINEERING.md
 └── AGENTS.md
 ```
@@ -356,11 +382,23 @@ No edite `src/routeTree.gen.ts`: lo genera el plugin de TanStack Router.
 | `pnpm run test:unit`       | Pruebas Vitest.                                          |
 | `pnpm run test:coverage`   | Vitest con cobertura.                                    |
 | `pnpm run test:e2e`        | Playwright contra Supabase local.                        |
+| `pnpm run test:e2e:ui`     | Interfaz Playwright contra Supabase local.               |
 | `pnpm run ci:check`        | Typecheck, lint, audit y cobertura.                      |
 | `pnpm run format`          | Prettier en el repositorio.                              |
 | `pnpm run supabase:start`  | Inicia el stack local.                                   |
 | `pnpm run supabase:reset`  | Reinicia la base y crea el superusuario.                 |
 | `pnpm run seed:demo`       | Agrega datos de demostración al stack local.             |
+
+### Importación histórica
+
+La utilidad `scripts/import-production-orders.mjs` fue creada para validar e importar el workbook legado de las órdenes `47670–47719`:
+
+```bash
+node scripts/import-production-orders.mjs <ruta.xlsx>           # dry-run
+node scripts/import-production-orders.mjs <ruta.xlsx> --execute # escritura
+```
+
+El modo predeterminado no escribe. `--execute` requiere `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` y **reemplaza los datos operativos** —órdenes, equipos, clientes, repuestos y auditoría— aunque conserva usuarios y roles. Úselo únicamente después de confirmar el proyecto destino, obtener un respaldo y revisar el dry-run. Consulte [`ENGINEERING.md`](./ENGINEERING.md#importación-histórica-de-producción) para el alcance completo.
 
 ## Verificación
 
@@ -380,25 +418,29 @@ pnpm run test:e2e
 
 Playwright inicia y reinicia un Supabase local, aplica migraciones, crea usuarios aislados y no utiliza producción.
 
+El hook `pre-push` ejecuta `pnpm run ci:check` y, cuando Supabase CLI y Docker están disponibles, también E2E. En GitHub, los PR a `main` pasan el quality gate; después de un push a `main`, CD vuelve a ejecutar E2E y solo entonces habilita el despliegue a Vercel.
+
 ---
 
 ## Despliegue
 
-### Cloudflare Workers
-
-```bash
-pnpm run build
-```
-
-El build activa `@cloudflare/vite-plugin`; [`src/server.ts`](./src/server.ts) envuelve el handler de TanStack Start y normaliza errores SSR. Configure las variables `SUPABASE_*` en el runtime y las `VITE_*` durante el build.
-
-### Vercel
+### Vercel — producción automatizada
 
 ```bash
 pnpm run build:vercel
 ```
 
 Este build establece `DEPLOY_TARGET=vercel`, desactiva el plugin Cloudflare y utiliza Nitro con preset Vercel.
+
+El flujo de GitHub es `CI → E2E con Supabase local → deploy del SHA a Vercel`. El deploy automatizado solo ocurre para pushes exitosos a `main` y usa la versión de Vercel CLI fijada en `.github/workflows/cd.yml`. No ejecuta `supabase db push`; aplique primero las migraciones remotas requeridas por ese código.
+
+### Cloudflare Workers — alternativa soportada
+
+```bash
+pnpm run build
+```
+
+El build activa `@cloudflare/vite-plugin`; [`src/server.ts`](./src/server.ts) envuelve el handler de TanStack Start y normaliza errores SSR. Configure las variables `SUPABASE_*` en el runtime y las `VITE_*` durante el build.
 
 ### Electron, planificado
 
@@ -415,6 +457,8 @@ Vite usa `base: "./"` cuando `ELECTRON=true`, pero el wrapper, distribución y a
 - Las reglas de flujo se verifican en server functions además de RLS.
 - Los técnicos reciben vistas de inventario sin costos, stock ni proveedor.
 - Los anticipos y pagos acumulados no pueden superar el total persistido del presupuesto; la validación se aplica también mediante un trigger transaccional.
+- Solo repuestos `quoted` recalculan el presupuesto; consumir un repuesto `used` exige cotización previa, valida stock y preserva el monto aprobado.
+- Los overrides y excepciones de auditoría de `pnpm-workspace.yaml` están documentados por compatibilidad de tooling; no deben ampliarse o eliminarse sin revisar `pnpm why`, lint y audit.
 - No commitee `.env`, `.env.local`, `.env.e2e.local` ni `supabase/.temp/`.
 - Si una clave llega al historial Git, rótela antes de usar o publicar el repositorio.
 
@@ -433,6 +477,7 @@ Vite usa `base: "./"` cuando `ELECTRON=true`, pero el wrapper, distribución y a
 | ------------------------------------------------------------ | ------------------------------------------------- |
 | [`ENGINEERING.md`](./ENGINEERING.md)                         | Arquitectura y convenciones de implementación.    |
 | [`AGENTS.md`](./AGENTS.md)                                   | Reglas de seguridad y trabajo para agentes de IA. |
+| [`CLAUDE.md`](./CLAUDE.md)                                   | Contexto y reglas específicas para Claude.        |
 | [`docs/service-order-flow.md`](./docs/service-order-flow.md) | Flujo canónico de órdenes.                        |
 | [`docs/data-model.md`](./docs/data-model.md)                 | Entidades y matriz de permisos.                   |
 | [`docs/api-spec.yml`](./docs/api-spec.yml)                   | Contratos RPC de server functions.                |
