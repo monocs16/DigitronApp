@@ -1,7 +1,27 @@
 ---
-description: This document contains all development rules and guidelines for this project, applicable to all AI agents (Claude, Cursor, Codex, Gemini, etc.).
+description: Claude-specific entry point for Digitron App. It supplements AGENTS.md and the canonical engineering and business-flow documentation.
 alwaysApply: true
 ---
+
+# CLAUDE.md — Digitron App
+
+This file contains Claude-specific working rules. It does **not** replace the project sources of truth. Read these first:
+
+1. [`AGENTS.md`](./AGENTS.md) — security, Supabase client boundaries, commands, and completion checklist.
+2. [`ENGINEERING.md`](./ENGINEERING.md) — current architecture, data access, database invariants, testing, and deployment.
+3. [`docs/service-order-flow.md`](./docs/service-order-flow.md) — canonical order lifecycle and actors.
+4. [`docs/data-model.md`](./docs/data-model.md) and [`README.md`](./README.md) — entities, permissions, setup, and user-facing capabilities.
+
+## Current Project Context
+
+- Digitron is a Spanish-language internal service-order application built with React 19, TanStack Start/Router/Query, Supabase Postgres/Auth/Storage, RLS, and Tailwind/shadcn.
+- Normal CRUD follows `component → TanStack Query → src/lib/repositories/* → supabase-js → Supabase Data API/PostgREST`. For example, `/equipment` calls `equipmentRepository.getAll()`; there is no custom REST route for that read.
+- Sensitive workflow operations use authenticated TanStack `createServerFn` handlers. User administration is the only current application workflow that uses service role and must remain server-only; the one-off historical import is privileged tooling, not browser code.
+- The active order path uses `awaiting_withdrawal`, not the removed `delivered` value. A rejected estimate remains pending pickup; delivery records `received_by` and closes the order.
+- Schema-dependent code and its migration are one deploy unit. Apply migrations locally and remotely and regenerate `src/integrations/supabase/types.ts` before deploying code that selects new fields such as `equipment.description`.
+- Never turn a failed query into an empty collection. Repositories propagate errors; screens distinguish loading, legitimate empty data, and failure, and provide an actionable retry.
+- Only quoted parts recalculate `budgets.parts_cost`. Recording a used part requires a quoted line and stock, and must preserve the approved budget.
+- Production CD runs quality checks, E2E against local Supabase, then deploys to Vercel. Cloudflare Workers remains a supported alternate build.
 
 ## 1. Core Principles
 
@@ -15,25 +35,31 @@ alwaysApply: true
 
 ## 2. Language Standards
 
-- **English Only**: All technical artifacts must always use English, including:
-  - Code (variables, functions, classes, comments, error messages, log messages)
-  - Documentation (README, guides, API docs)
-  - Jira tickets (titles, descriptions, comments)
-  - Data schemas and database names
-  - Configuration files and scripts
-  - Git commit messages
-  - Test names and descriptions
+- Use English for code identifiers, technical comments, log/error strings, schemas, configuration, scripts, commit messages, and test names.
+- The product UI is Spanish-first. Add reusable visible copy through i18n and keep `src/locales/es.ts` and `src/locales/en.ts` aligned.
+- Preserve the established language of an existing document. `AGENTS.md`, `ENGINEERING.md`, and `README.md` are currently Spanish operational guides; do not introduce mixed-language paragraphs into them. New standalone technical documentation follows [`docs/documentation-standards.md`](./docs/documentation-standards.md).
 
 ## 3. Specific standards
 
 For detailed standards and guidelines specific to different areas of the project, refer to:
 
+- [Agent Guide](./AGENTS.md) - mandatory repository-specific safety and workflow rules
+- [Engineering Guide](./ENGINEERING.md) - architecture, Supabase boundaries, database invariants, testing, and deployment
 - [Service Order Flow](./docs/service-order-flow.md) — **canonical business process diagram**. Any work touching stage transitions, role gating, UI actions, or server functions must consult this first. Update it before changing implementation.
+- [Data Model](./docs/data-model.md) - entities and permission model
 - [Backend Standards](./docs/backend-standards.md) - API development, database patterns, testing, security and backend best practices
 - [Frontend Standards](./docs/frontend-standards.md) - React components, UI/UX guidelines, and frontend architecture
 - [Documentation Standards](./docs/documentation-standards.md) - Technical documentation structure, formatting, and maintenance guidelines, including AI standards like this document
 - [OpenSpec Tasks Mandatory Steps](./docs/openspec-tasks-mandatory-steps.md) - Required checklist and execution rules when creating or updating OpenSpec `tasks.md` files
 - [Code Review Log](./docs/code-review-log.md) - Living journal of code reviews: per-review entries anchored to commit SHAs, SOLID compliance matrix, architecture baseline, and action items. Append a new entry here after every `/code-review` or `/code-auditing` run.
+
+Repository-specific verification takes precedence over generic examples:
+
+- Run `pnpm run ci:check` for every implementation change.
+- Run `pnpm run test:e2e` for auth, RLS, migrations, routing, or service-order workflow changes.
+- In order-detail E2E tests, expand collapsible modules with the shared helpers and scope locators to the relevant card.
+- Seed trigger-owned data in dependency order. In particular, create a scenario-specific budget before quoted parts because the quoted-part trigger can create/upsert that budget.
+- Verify the affected deployment target with `pnpm run build:vercel` or `pnpm run build`.
 
 ## 4. Project Skills
 
