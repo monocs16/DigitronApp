@@ -308,11 +308,63 @@ export type Database = {
             referencedRelation: "parts";
             referencedColumns: ["id"];
           },
+        ];
+      };
+      order_parts_technician: {
+        Row: {
+          created_at: string;
+          evaluation_id: string | null;
+          id: string;
+          order_id: string;
+          part_id: string;
+          quantity: number;
+          stage: string;
+        };
+        Insert: {
+          created_at: string;
+          evaluation_id?: string | null;
+          id: string;
+          order_id: string;
+          part_id: string;
+          quantity: number;
+          stage: string;
+        };
+        Update: {
+          created_at?: string;
+          evaluation_id?: string | null;
+          id?: string;
+          order_id?: string;
+          part_id?: string;
+          quantity?: number;
+          stage?: string;
+        };
+        Relationships: [
           {
-            foreignKeyName: "order_parts_part_id_fkey";
+            foreignKeyName: "order_parts_technician_evaluation_id_fkey";
+            columns: ["evaluation_id"];
+            isOneToOne: false;
+            referencedRelation: "technical_evaluations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_parts_technician_id_fkey";
+            columns: ["id"];
+            isOneToOne: true;
+            referencedRelation: "order_parts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_parts_technician_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_parts_technician_part_id_fkey";
             columns: ["part_id"];
             isOneToOne: false;
-            referencedRelation: "parts_technician";
+            referencedRelation: "parts";
             referencedColumns: ["id"];
           },
         ];
@@ -474,8 +526,12 @@ export type Database = {
         Row: {
           created_at: string;
           created_from_order_id: string | null;
+          datasheet: string | null;
           description: string;
           id: string;
+          image: string | null;
+          location: string | null;
+          nte_substitute: string | null;
           part_code: string;
           stock: number;
           supplier: string | null;
@@ -485,8 +541,12 @@ export type Database = {
         Insert: {
           created_at?: string;
           created_from_order_id?: string | null;
+          datasheet?: string | null;
           description: string;
           id?: string;
+          image?: string | null;
+          location?: string | null;
+          nte_substitute?: string | null;
           part_code: string;
           stock?: number;
           supplier?: string | null;
@@ -496,8 +556,12 @@ export type Database = {
         Update: {
           created_at?: string;
           created_from_order_id?: string | null;
+          datasheet?: string | null;
           description?: string;
           id?: string;
+          image?: string | null;
+          location?: string | null;
+          nte_substitute?: string | null;
           part_code?: string;
           stock?: number;
           supplier?: string | null;
@@ -510,6 +574,44 @@ export type Database = {
             columns: ["created_from_order_id"];
             isOneToOne: false;
             referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      parts_technician: {
+        Row: {
+          datasheet: string | null;
+          description: string;
+          id: string;
+          image: string | null;
+          location: string | null;
+          nte_substitute: string | null;
+          part_code: string;
+        };
+        Insert: {
+          datasheet?: string | null;
+          description: string;
+          id: string;
+          image?: string | null;
+          location?: string | null;
+          nte_substitute?: string | null;
+          part_code: string;
+        };
+        Update: {
+          datasheet?: string | null;
+          description?: string;
+          id?: string;
+          image?: string | null;
+          location?: string | null;
+          nte_substitute?: string | null;
+          part_code?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "parts_technician_id_fkey";
+            columns: ["id"];
+            isOneToOne: true;
+            referencedRelation: "parts";
             referencedColumns: ["id"];
           },
         ];
@@ -699,65 +801,7 @@ export type Database = {
       };
     };
     Views: {
-      order_parts_technician: {
-        Row: {
-          created_at: string | null;
-          evaluation_id: string | null;
-          id: string | null;
-          order_id: string | null;
-          part_id: string | null;
-          quantity: number | null;
-          stage: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "order_parts_evaluation_id_fkey";
-            columns: ["evaluation_id"];
-            isOneToOne: false;
-            referencedRelation: "technical_evaluations";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "order_parts_order_id_fkey";
-            columns: ["order_id"];
-            isOneToOne: false;
-            referencedRelation: "orders";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "order_parts_part_id_fkey";
-            columns: ["part_id"];
-            isOneToOne: false;
-            referencedRelation: "parts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "order_parts_part_id_fkey";
-            columns: ["part_id"];
-            isOneToOne: false;
-            referencedRelation: "parts_technician";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      parts_technician: {
-        Row: {
-          description: string | null;
-          id: string | null;
-          part_code: string | null;
-        };
-        Insert: {
-          description?: string | null;
-          id?: string | null;
-          part_code?: string | null;
-        };
-        Update: {
-          description?: string | null;
-          id?: string | null;
-          part_code?: string | null;
-        };
-        Relationships: [];
-      };
+      [_ in never]: never;
     };
     Functions: {
       has_any_role: {

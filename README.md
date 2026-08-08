@@ -156,7 +156,7 @@ erDiagram
 | `order_notes`           | Bitácora humana interna append-only.                                                               |
 | `audit_log`             | Auditoría técnica de órdenes y módulos relacionados, generada automáticamente por triggers.        |
 
-Los técnicos consultan inventario mediante las vistas restringidas `parts_technician` y `order_parts_technician`; costos, stock y proveedor permanecen protegidos.
+Los técnicos consultan inventario mediante las tablas de lectura derivadas y protegidas por RLS `parts_technician` y `order_parts_technician`; costos, stock y proveedor permanecen protegidos. Triggers internos mantienen estas proyecciones desde las tablas comerciales dentro de la misma transacción.
 
 ### Numeración
 

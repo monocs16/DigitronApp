@@ -20,23 +20,8 @@ export const orderPartsRepository = {
       if (error) throw error;
       return data;
     }
-    const view = supabase.from("order_parts_technician" as never) as unknown as {
-      select: (columns: string) => {
-        eq: (
-          column: string,
-          value: string,
-        ) => {
-          order: (
-            column: string,
-            options: { ascending: boolean },
-          ) => Promise<{
-            data: { id: string; part_id: string; stage: string; quantity: number }[] | null;
-            error: Error | null;
-          }>;
-        };
-      };
-    };
-    const { data, error } = await view
+    const { data, error } = await supabase
+      .from("order_parts_technician")
       .select("id, part_id, stage, quantity")
       .eq("order_id", orderId)
       .order("created_at", { ascending: true });

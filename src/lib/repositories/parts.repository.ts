@@ -4,28 +4,28 @@ export const partsRepository = {
   getAll: async () => {
     const { data, error } = await supabase
       .from("parts")
-      .select("id, part_code, description, unit_cost, stock, supplier")
+      .select(
+        "id, part_code, stock, location, description, datasheet, nte_substitute, image, unit_cost, supplier",
+      )
       .order("part_code", { ascending: true });
     if (error) throw error;
     return data;
   },
 
   getTechnicianCatalog: async (): Promise<
-    { id: string; part_code: string; description: string }[]
+    {
+      id: string;
+      part_code: string;
+      location: string | null;
+      description: string;
+      datasheet: string | null;
+      nte_substitute: string | null;
+      image: string | null;
+    }[]
   > => {
-    const view = supabase.from("parts_technician" as never) as unknown as {
-      select: (columns: string) => {
-        order: (
-          column: string,
-          options: { ascending: boolean },
-        ) => Promise<{
-          data: { id: string; part_code: string; description: string }[] | null;
-          error: Error | null;
-        }>;
-      };
-    };
-    const { data, error } = await view
-      .select("id, part_code, description")
+    const { data, error } = await supabase
+      .from("parts_technician")
+      .select("id, part_code, location, description, datasheet, nte_substitute, image")
       .order("part_code", { ascending: true });
     if (error) throw error;
     return data ?? [];
@@ -33,7 +33,11 @@ export const partsRepository = {
 
   create: async (payload: {
     part_code: string;
+    location: string | null;
     description: string;
+    datasheet: string | null;
+    nte_substitute: string | null;
+    image: string | null;
     unit_cost: number;
     stock: number;
     supplier: string | null;
@@ -49,7 +53,11 @@ export const partsRepository = {
     id: string,
     payload: {
       part_code: string;
+      location: string | null;
       description: string;
+      datasheet: string | null;
+      nte_substitute: string | null;
+      image: string | null;
       unit_cost: number;
       stock: number;
       supplier: string | null;

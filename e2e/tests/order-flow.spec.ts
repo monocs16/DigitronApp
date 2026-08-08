@@ -66,6 +66,56 @@ test.describe("Admin — order flow", () => {
     await waitForAdminOrderAccess(page);
   });
 
+  test("parts catalog stores and renders the extended metadata", async ({ page }) => {
+    if (!getServiceRoleKey()) {
+      test.skip(true, "SUPABASE_SERVICE_ROLE_KEY not set — skipping cleanup-dependent test");
+    }
+
+    const suffix = Date.now();
+    const partCode = `CATALOG-${suffix}`;
+    const datasheet = `https://example.com/datasheets/${suffix}.pdf`;
+    const image = `https://example.com/images/${suffix}.jpg`;
+
+    try {
+      await page.goto("/inventory");
+      await page.getByRole("button", { name: "Nuevo repuesto" }).click();
+      const dialog = page.getByRole("dialog", { name: "Nuevo repuesto" });
+      await dialog.getByLabel("Código *").fill(partCode);
+      await dialog.getByLabel("Stock").fill("12");
+      await dialog.getByLabel("Ubicación").fill("Bodega A-3");
+      await dialog.getByLabel("Descripción *").fill("Repuesto con catálogo extendido");
+      await dialog.getByLabel("Ficha técnica").fill(datasheet);
+      await dialog.getByLabel("NTE (sustituto)").fill("NTE-1234");
+      await dialog.getByLabel("Imagen").fill(image);
+      await dialog.getByLabel("Costo unitario").fill("2500.50");
+      await dialog.getByLabel("Proveedor").fill("Proveedor E2E");
+      await dialog.getByRole("button", { name: labels.common.save }).click();
+
+      const row = page.getByRole("row").filter({ hasText: partCode });
+      await expect(dialog).not.toBeVisible();
+      await expect(row).toBeVisible();
+      expect(await page.getByRole("columnheader").allTextContents()).toEqual([
+        "Código",
+        "Stock",
+        "Ubicación",
+        "Descripción",
+        "Ficha técnica",
+        "NTE (sustituto)",
+        "Imagen",
+        "Costo unitario",
+        "Proveedor",
+        "Acciones",
+      ]);
+      await expect(row).toContainText("Bodega A-3");
+      await expect(row).toContainText("NTE-1234");
+      await expect(row).toContainText("Proveedor E2E");
+      await expect(row.getByRole("link", { name: "Ver ficha" })).toHaveAttribute("href", datasheet);
+      await expect(row.getByRole("link", { name: "Ver imagen" })).toHaveAttribute("href", image);
+    } finally {
+      await deleteTestPartByCode(partCode);
+    }
+  });
+
   test("client and equipment searches match all supported fields", async ({ page }) => {
     const seeded = await seedTestCustomerEquipment();
     try {
