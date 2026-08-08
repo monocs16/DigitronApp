@@ -27,7 +27,11 @@ import {
 export type PartEditing = {
   id: string;
   part_code: string;
+  location: string | null;
   description: string;
+  datasheet: string | null;
+  nte_substitute: string | null;
+  image: string | null;
   unit_cost: number;
   stock: number;
   supplier: string | null;
@@ -35,7 +39,11 @@ export type PartEditing = {
 
 const partSchema = z.object({
   part_code: z.string().min(1, "Code is required"),
+  location: z.string(),
   description: z.string().min(1, "Description is required"),
+  datasheet: z.string(),
+  nte_substitute: z.string(),
+  image: z.string(),
   unit_cost: z.coerce.number().min(0),
   stock: z.coerce.number().int().min(0),
   supplier: z.string(),
@@ -54,7 +62,11 @@ interface PartFormDialogProps {
 
 const EMPTY: PartFormValues = {
   part_code: "",
+  location: "",
   description: "",
+  datasheet: "",
+  nte_substitute: "",
+  image: "",
   unit_cost: 0,
   stock: 0,
   supplier: "",
@@ -82,7 +94,11 @@ export function PartFormDialog({
         editing
           ? {
               part_code: editing.part_code,
+              location: editing.location ?? "",
               description: editing.description,
+              datasheet: editing.datasheet ?? "",
+              nte_substitute: editing.nte_substitute ?? "",
+              image: editing.image ?? "",
               unit_cost: editing.unit_cost,
               stock: editing.stock,
               supplier: editing.supplier ?? "",
@@ -96,7 +112,11 @@ export function PartFormDialog({
     mutationFn: async (values: PartFormValues) => {
       const payload = {
         part_code: values.part_code.trim(),
+        location: values.location.trim() || null,
         description: values.description.trim(),
+        datasheet: values.datasheet.trim() || null,
+        nte_substitute: values.nte_substitute.trim() || null,
+        image: values.image.trim() || null,
         unit_cost: values.unit_cost,
         stock: values.stock,
         supplier: values.supplier.trim() || null,
@@ -124,7 +144,7 @@ export function PartFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? t("inventory.editPart") : t("inventory.newPart")}</DialogTitle>
         </DialogHeader>
@@ -147,12 +167,12 @@ export function PartFormDialog({
               {!hideCommercialFields && (
                 <FormField
                   control={form.control}
-                  name="supplier"
+                  name="stock"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("inventory.supplier")}</FormLabel>
+                      <FormLabel>{t("inventory.stock")}</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input type="number" min="0" step="1" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -161,12 +181,64 @@ export function PartFormDialog({
               )}
               <FormField
                 control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.location")}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="description"
                 render={({ field }) => (
-                  <FormItem className="sm:col-span-2">
+                  <FormItem>
                     <FormLabel>{t("inventory.description")} *</FormLabel>
                     <FormControl>
                       <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="datasheet"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.datasheet")}</FormLabel>
+                    <FormControl>
+                      <Input type="url" placeholder="https://…" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="nte_substitute"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.nteSubstitute")}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="image"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("inventory.image")}</FormLabel>
+                    <FormControl>
+                      <Input type="url" placeholder="https://…" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -189,12 +261,12 @@ export function PartFormDialog({
                   />
                   <FormField
                     control={form.control}
-                    name="stock"
+                    name="supplier"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("inventory.stock")}</FormLabel>
+                        <FormLabel>{t("inventory.supplier")}</FormLabel>
                         <FormControl>
-                          <Input type="number" min="0" step="1" {...field} />
+                          <Input {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

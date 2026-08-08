@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { labels } from "../helpers/labels";
+import { loadE2eSupabaseEnv } from "../helpers/supabase-env";
 
 /**
  * Auth guard E2E tests.
@@ -38,5 +39,28 @@ test.describe("Auth — unauthenticated access", () => {
     await expect(page.getByRole("button", { name: labels.login.signIn })).toBeVisible({
       timeout: 5_000,
     });
+  });
+
+  test("technician read models reject anonymous Data API access", async ({ request }) => {
+    const { apiUrl, anonKey } = loadE2eSupabaseEnv();
+    const headers = {
+      apikey: anonKey,
+      Authorization: `Bearer ${anonKey}`,
+      "Content-Type": "application/json",
+    };
+
+    for (const relation of ["parts_technician", "order_parts_technician"]) {
+      const response = await request.get(`${apiUrl}/rest/v1/${relation}?select=*`, { headers });
+      expect([401, 403]).toContain(response.status());
+    }
+
+    const update = await request.patch(
+      `${apiUrl}/rest/v1/parts_technician?id=eq.00000000-0000-0000-0000-000000000000`,
+      {
+        headers,
+        data: { description: "anonymous write must be rejected" },
+      },
+    );
+    expect([401, 403]).toContain(update.status());
   });
 });

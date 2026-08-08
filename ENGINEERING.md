@@ -287,7 +287,7 @@ GitHub CD **no** ejecuta `supabase db push`. Si la UI reporta `Could not find '<
 
 ### Privacidad de inventario
 
-La tabla base `parts` contiene stock, costo y proveedor y solo es legible por administrativo/super. Los técnicos seleccionan repuestos mediante `parts_technician` y consultan líneas asignadas mediante `order_parts_technician`. No amplíe estas vistas con información comercial sin una decisión explícita de seguridad.
+La tabla base `parts` contiene stock, costo y proveedor y solo es legible por administrativo/super. Los técnicos seleccionan repuestos mediante las tablas de lectura derivadas `parts_technician` y `order_parts_technician`, protegidas por RLS y mantenidas por triggers internos desde las tablas comerciales. No escriba directamente en estas proyecciones ni las amplíe con información comercial sin una decisión explícita de seguridad.
 
 ### Auditoría
 

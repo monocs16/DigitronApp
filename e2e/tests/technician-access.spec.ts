@@ -50,6 +50,8 @@ test.describe("Technician — access restrictions", () => {
       technicianId,
     );
     const partCode = `EVAL-${Date.now()}`;
+    const datasheet = "https://example.com/technician-datasheet.pdf";
+    const image = "https://example.com/technician-part.jpg";
 
     try {
       await page.goto(`/orders/${order.id}`);
@@ -57,14 +59,45 @@ test.describe("Technician — access restrictions", () => {
 
       const dialog = page.getByRole("dialog", { name: "Nuevo repuesto" });
       await dialog.getByLabel("Código *").fill(partCode);
+      await dialog.getByLabel("Ubicación").fill("Taller B-2");
       await dialog.getByLabel("Descripción *").fill("Repuesto creado desde evaluación");
+      await dialog.getByLabel("Ficha técnica").fill(datasheet);
+      await dialog.getByLabel("NTE (sustituto)").fill("NTE-TECH-1");
+      await dialog.getByLabel("Imagen").fill(image);
       await expect(dialog.getByLabel("Proveedor")).not.toBeVisible();
       await expect(dialog.getByLabel("Costo unitario")).not.toBeVisible();
       await expect(dialog.getByLabel("Stock")).not.toBeVisible();
       await dialog.getByRole("button", { name: labels.common.save }).click();
 
       await expect(dialog).not.toBeVisible();
-      await expect(page.getByText(partCode, { exact: false }).first()).toBeVisible();
+
+      const evaluationCard = page.getByTestId("evaluation-card");
+      const requiredParts = evaluationCard.getByRole("combobox", {
+        name: "Repuestos requeridos",
+      });
+      await requiredParts.click();
+      await page.getByRole("option").filter({ hasText: partCode }).click();
+      await evaluationCard.getByRole("button", { name: "Agregar", exact: true }).click();
+
+      await expect(
+        evaluationCard.locator("ul").getByText(partCode, { exact: false }),
+      ).toBeVisible();
+
+      await page.goto("/inventory");
+      const inventoryRow = page.getByRole("row").filter({ hasText: partCode });
+      await expect(inventoryRow).toContainText("Taller B-2");
+      await expect(inventoryRow).toContainText("NTE-TECH-1");
+      await expect(inventoryRow.getByRole("link", { name: "Ver ficha" })).toHaveAttribute(
+        "href",
+        datasheet,
+      );
+      await expect(inventoryRow.getByRole("link", { name: "Ver imagen" })).toHaveAttribute(
+        "href",
+        image,
+      );
+      await expect(page.getByRole("columnheader", { name: "Stock" })).not.toBeVisible();
+      await expect(page.getByRole("columnheader", { name: "Costo unitario" })).not.toBeVisible();
+      await expect(page.getByRole("columnheader", { name: "Proveedor" })).not.toBeVisible();
     } finally {
       await deleteTestCustomer(clientId, equipmentId);
       await deleteTestPartByCode(partCode);
