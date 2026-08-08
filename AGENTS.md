@@ -86,6 +86,8 @@ Las transiciones de órdenes, decisiones de presupuesto, notificaciones registra
 Cambios recientes que forman parte del contrato vigente:
 
 - `equipment.description` es opcional y proviene de `20260723000631_add_equipment_description.sql`; se muestra en `/equipment` y participa en la búsqueda junto con marca, modelo y serie.
+- `parts` incluye los metadatos opcionales `location`, `datasheet`, `nte_substitute` e `image` desde `20260808063014_extend_parts_catalog.sql`. La UI presenta `datasheet` e `image` como enlaces solo cuando usan HTTP/HTTPS.
+- `parts_technician` y `order_parts_technician` son tablas de lectura con RLS, no vistas. `20260808054134_secure_technician_read_models.sql` reemplazó las vistas privilegiadas y triggers privados mantienen las proyecciones; no escribas directamente en ellas ni expongas stock, costo, proveedor o snapshots comerciales a técnicos.
 - El flujo usa `awaiting_withdrawal`, no `delivered`. Rechazo y pago resuelto llegan a pendiente de retiro; registrar la entrega cierra la orden.
 - Solo líneas de repuesto `quoted` recalculan `budgets.parts_cost`. Registrar una línea `used` exige cotización previa y stock suficiente, y no modifica el presupuesto aprobado.
 - El saldo pagable se calcula con el presupuesto persistido. Un formulario de presupuesto con cambios sin guardar no puede habilitar un pago engañoso.

@@ -174,6 +174,15 @@ src/routes/_authenticated/equipment.tsx
 
 No existe un endpoint REST propio ni una server function para esa lectura. La consulta selecciona `description`, por lo que el proyecto consultado debe tener aplicada `20260723000631_add_equipment_description.sql`.
 
+El inventario sigue el mismo patrón, pero el repositorio elige la relación según el rol:
+
+```text
+/inventory → partsRepository.getAll()                → public.parts
+           → partsRepository.getTechnicianCatalog() → public.parts_technician
+```
+
+`public.parts` contiene el contrato comercial completo. `public.parts_technician` conserva solo `id`, `part_code`, `location`, `description`, `datasheet`, `nte_substitute` e `image`; requiere las migraciones `20260808054134_secure_technician_read_models.sql` y `20260808063014_extend_parts_catalog.sql`.
+
 Responsabilidades:
 
 - Selecciones consistentes y relaciones requeridas por la UI.
@@ -279,6 +288,7 @@ GitHub CD **no** ejecuta `supabase db push`. Si la UI reporta `Could not find '<
 - `budgets` es uno-a-uno con la orden.
 - `order_notes` es append-only y se diferencia de `audit_log`.
 - El costo y disponibilidad de `order_parts` se capturan dentro de Postgres.
+- `parts.location`, `parts.datasheet`, `parts.nte_substitute` y `parts.image` son metadatos opcionales. La UI trata `datasheet` e `image` como URLs externas y solo crea enlaces para protocolos HTTP/HTTPS.
 - Un técnico asignado puede proponer un repuesto durante `evaluation`; se crea ligado por `created_from_order_id`, con costo y stock cero y sin proveedor hasta que administración complete los datos comerciales.
 - Insertar una pieza `used` requiere una línea `quoted` previa para esa orden, descuenta stock de forma condicional y concurrente, y eliminarla lo restaura.
 - Solo los cambios en piezas `quoted` sincronizan `budgets.parts_cost`; una pieza `used` nunca recalcula ni altera el presupuesto aprobado.
@@ -287,7 +297,9 @@ GitHub CD **no** ejecuta `supabase db push`. Si la UI reporta `Could not find '<
 
 ### Privacidad de inventario
 
-La tabla base `parts` contiene stock, costo y proveedor y solo es legible por administrativo/super. Los técnicos seleccionan repuestos mediante las tablas de lectura derivadas `parts_technician` y `order_parts_technician`, protegidas por RLS y mantenidas por triggers internos desde las tablas comerciales. No escriba directamente en estas proyecciones ni las amplíe con información comercial sin una decisión explícita de seguridad.
+La tabla base `parts` contiene stock, costo y proveedor y solo es legible por administrativo/super. Los técnicos seleccionan repuestos mediante las tablas físicas de lectura derivadas `parts_technician` y `order_parts_technician`, protegidas por RLS y mantenidas por triggers internos desde las tablas comerciales. Sustituyeron las antiguas vistas con privilegios del creador para que la autorización se evalúe mediante las políticas RLS de la tabla consultada.
+
+Las funciones de sincronización viven en el schema no expuesto `private`, fijan `search_path` y revocan `EXECUTE` a `PUBLIC`, `anon`, `authenticated` y `service_role`; solo se invocan como triggers. No escriba directamente en estas proyecciones, no las convierta otra vez en vistas `SECURITY DEFINER` y no agregue stock, costo, proveedor ni snapshots comerciales sin una decisión explícita de seguridad.
 
 ### Auditoría
 

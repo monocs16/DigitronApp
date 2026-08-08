@@ -17,6 +17,7 @@ Sistema web full-stack para gestionar el ciclo completo de las **órdenes de ser
 - Generar y reimprimir la orden de servicio en PDF a partir de la plantilla editable de Digitron.
 - Guiar cada orden por evaluación, presupuesto, decisión del cliente, reparación, pago, espera de retiro y cierre.
 - Cotizar repuestos durante la evaluación —incluyendo crear uno nuevo sin abandonar la orden— y consumir durante la reparación únicamente los repuestos evaluados, con actualización transaccional del inventario.
+- Mantener un catálogo de repuestos con código, stock, ubicación, descripción, ficha técnica, sustituto NTE, imagen, costo unitario y proveedor; ficha técnica e imagen se abren como enlaces externos seguros.
 - Registrar anticipos y múltiples pagos o métodos de pago sin permitir que excedan el saldo real del presupuesto; el presupuesto aprobado no cambia al consumir un repuesto.
 - Adjuntar fotografías privadas y mantener notas internas append-only, incluso después del cierre para los roles autorizados.
 - Registrar en historial y auditoría los cambios de evaluación, presupuesto, reparación, pagos, repuestos, notas, fotos, entrega y demás datos operativos.
@@ -35,7 +36,7 @@ Sistema web full-stack para gestionar el ciclo completo de las **órdenes de ser
 | `/orders/:orderId` | Según RLS                                                 | Flujo guiado en módulos colapsables: cliente/equipo, evaluación, presupuesto, reparación, pagos, fotos, notas e historial. |
 | `/clients`         | Administrativo, super                                     | Directorio, mantenimiento y búsqueda por nombre, teléfono o cédula.                                                        |
 | `/equipment`       | Lectura técnico; edición administrativo/super             | Activos con descripción, historial y búsqueda por descripción, marca, modelo o serie; los errores ofrecen reintento.       |
-| `/inventory`       | Lectura restringida técnico; edición administrativo/super | Catálogo, existencias, costos y proveedores.                                                                               |
+| `/inventory`       | Lectura restringida técnico; edición administrativo/super | Catálogo ampliado; técnicos ven metadatos operativos y administración también ve stock, costo y proveedor.                 |
 | `/reports`         | Administrativo, super                                     | Resúmenes por etapa, técnico y periodo; repuestos y garantías; PDF.                                                        |
 | `/usuarios`        | Super                                                     | Crear, cambiar rol y eliminar usuarios mediante operaciones solo servidor.                                                 |
 | `/configuracion`   | Usuarios autenticados                                     | Perfil, tema e idioma.                                                                                                     |
@@ -133,30 +134,34 @@ erDiagram
   orders ||--o| repairs : has
   orders ||--o{ order_parts : includes
   parts ||--o{ order_parts : referenced_by
+  parts ||--|| parts_technician : projects_to
+  order_parts ||--|| order_parts_technician : projects_to
   orders ||--o{ payments : receives
   orders ||--o{ order_photos : documents
   orders ||--o{ order_notes : logs
   orders ||--o{ orders : warranty_origin
 ```
 
-| Tabla                   | Descripción                                                                                        |
-| ----------------------- | -------------------------------------------------------------------------------------------------- |
-| `profiles`              | Perfil del usuario Auth: nombre, email y estado activo.                                            |
-| `user_roles`            | Roles `cliente`, `administrativo`, `tecnico` y `super`.                                            |
-| `customers`             | Cliente y datos de contacto; identificación opcional pero única si se informa.                     |
-| `equipment`             | Activo independiente con descripción libre opcional; serie opcional pero única si se informa.      |
-| `orders`                | Agregado principal: cliente/equipo de la visita, condición al recibir, etapa y entrega.            |
-| `technical_evaluations` | Diagnóstico y observaciones del técnico.                                                           |
-| `budgets`               | Presupuesto único por orden, costos, anticipo y decisión del cliente.                              |
-| `parts`                 | Inventario comercial de repuestos.                                                                 |
-| `order_parts`           | Repuestos cotizados en evaluación o usados en reparación, con snapshots de costo y disponibilidad. |
-| `repairs`               | Trabajo realizado, técnico y estado de reparación.                                                 |
-| `payments`              | Pagos registrados para la orden.                                                                   |
-| `order_photos`          | Metadatos de archivos privados en Storage.                                                         |
-| `order_notes`           | Bitácora humana interna append-only.                                                               |
-| `audit_log`             | Auditoría técnica de órdenes y módulos relacionados, generada automáticamente por triggers.        |
+| Tabla                    | Descripción                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `profiles`               | Perfil del usuario Auth: nombre, email y estado activo.                                                             |
+| `user_roles`             | Roles `cliente`, `administrativo`, `tecnico` y `super`.                                                             |
+| `customers`              | Cliente y datos de contacto; identificación opcional pero única si se informa.                                      |
+| `equipment`              | Activo independiente con descripción libre opcional; serie opcional pero única si se informa.                       |
+| `orders`                 | Agregado principal: cliente/equipo de la visita, condición al recibir, etapa y entrega.                             |
+| `technical_evaluations`  | Diagnóstico y observaciones del técnico.                                                                            |
+| `budgets`                | Presupuesto único por orden, costos, anticipo y decisión del cliente.                                               |
+| `parts`                  | Catálogo comercial: código, stock, ubicación, descripción, ficha técnica, sustituto NTE, imagen, costo y proveedor. |
+| `parts_technician`       | Proyección RLS con metadatos de repuesto seguros para técnicos; no contiene stock, costo ni proveedor.              |
+| `order_parts`            | Repuestos cotizados en evaluación o usados en reparación, con snapshots de costo y disponibilidad.                  |
+| `order_parts_technician` | Proyección RLS de líneas de repuesto sin snapshots comerciales.                                                     |
+| `repairs`                | Trabajo realizado, técnico y estado de reparación.                                                                  |
+| `payments`               | Pagos registrados para la orden.                                                                                    |
+| `order_photos`           | Metadatos de archivos privados en Storage.                                                                          |
+| `order_notes`            | Bitácora humana interna append-only.                                                                                |
+| `audit_log`              | Auditoría técnica de órdenes y módulos relacionados, generada automáticamente por triggers.                         |
 
-Los técnicos consultan inventario mediante las tablas de lectura derivadas y protegidas por RLS `parts_technician` y `order_parts_technician`; costos, stock y proveedor permanecen protegidos. Triggers internos mantienen estas proyecciones desde las tablas comerciales dentro de la misma transacción.
+Los técnicos consultan inventario mediante las tablas físicas de lectura derivadas y protegidas por RLS `parts_technician` y `order_parts_technician`; no son vistas y costos, stock y proveedor permanecen protegidos. Triggers internos mantienen estas proyecciones desde las tablas comerciales dentro de la misma transacción.
 
 ### Numeración
 
@@ -296,7 +301,7 @@ supabase migration list
 supabase db push
 ```
 
-Después regenere/verifique [`src/integrations/supabase/types.ts`](./src/integrations/supabase/types.ts) y pruebe la consulta contra el proyecto enlazado. La descripción de equipos requiere `20260723000631_add_equipment_description.sql`.
+Después regenere/verifique [`src/integrations/supabase/types.ts`](./src/integrations/supabase/types.ts) y pruebe la consulta contra el proyecto enlazado. La descripción de equipos requiere `20260723000631_add_equipment_description.sql`; las proyecciones RLS y el catálogo ampliado de repuestos requieren `20260808054134_secure_technician_read_models.sql` y `20260808063014_extend_parts_catalog.sql`.
 
 El error `Could not find the '<column>' column ... in the schema cache` suele indicar que el código llegó antes que la migración. No significa que la tabla esté vacía: aplique/verifique la migración y recargue la consulta. Para tablas nuevas, confirme además su exposición/grants de Data API y sus políticas RLS.
 
@@ -455,7 +460,7 @@ Vite usa `base: "./"` cuando `ELECTRON=true`, pero el wrapper, distribución y a
 - El service role solo existe dentro de código servidor y nunca lleva prefijo `VITE_`.
 - Las fotografías viven en el bucket privado `order-photos` y se entregan con URLs firmadas.
 - Las reglas de flujo se verifican en server functions además de RLS.
-- Los técnicos reciben vistas de inventario sin costos, stock ni proveedor.
+- Los técnicos leen tablas derivadas protegidas por RLS, no vistas privilegiadas, sin costos, stock ni proveedor.
 - Los anticipos y pagos acumulados no pueden superar el total persistido del presupuesto; la validación se aplica también mediante un trigger transaccional.
 - Solo repuestos `quoted` recalculan el presupuesto; consumir un repuesto `used` exige cotización previa, valida stock y preserva el monto aprobado.
 - Los overrides y excepciones de auditoría de `pnpm-workspace.yaml` están documentados por compatibilidad de tooling; no deben ampliarse o eliminarse sin revisar `pnpm why`, lint y audit.

@@ -39,6 +39,7 @@ payment, and closing — with a dedicated warranty path.
 | Modelo        | string   | Model                                            |
 | NumeroSerie   | string   | Serial number — used for warranty history lookup |
 | TipoEquipo    | string   |                                                  |
+| Descripcion   | string?  | Optional free-form description                   |
 | FacturaCompra | string   | Purchase invoice                                 |
 | TiendaCompra  | string   | Store of purchase                                |
 | FechaCompra   | datetime |                                                  |
@@ -80,14 +81,22 @@ payment, and closing — with a dedicated warranty path.
 
 ### PIEZA (Part / Inventory item)
 
-| Field         | Type   | Notes            |
-| ------------- | ------ | ---------------- |
-| IdPieza       | int    | PK               |
-| CodigoParte   | string | Part code        |
-| Descripcion   | string |                  |
-| Stock         | int    | On-hand quantity |
-| CostoUnitario | float  | Unit cost        |
-| Proveedor     | string | Supplier         |
+| Field         | Physical column  | Type    | Notes                              |
+| ------------- | ---------------- | ------- | ---------------------------------- |
+| IdPieza       | `id`             | uuid    | PK                                 |
+| CodigoParte   | `part_code`      | string  | Unique part code                   |
+| Stock         | `stock`          | int     | On-hand quantity; commercial field |
+| Ubicacion     | `location`       | string? | Optional physical storage location |
+| Descripcion   | `description`    | string  | Required description               |
+| FichaTecnica  | `datasheet`      | string? | Optional external datasheet URL    |
+| SustitutoNTE  | `nte_substitute` | string? | Optional NTE substitute/equivalent |
+| Imagen        | `image`          | string? | Optional external image URL        |
+| CostoUnitario | `unit_cost`      | float   | Unit cost; commercial field        |
+| Proveedor     | `supplier`       | string? | Supplier; commercial field         |
+
+#### Technician inventory read models
+
+`parts_technician` and `order_parts_technician` are physical RLS-protected tables maintained transactionally from `parts` and `order_parts` by internal triggers. They are not views. `parts_technician` exposes only `id`, `part_code`, `location`, `description`, `datasheet`, `nte_substitute`, and `image`; it intentionally excludes `stock`, `unit_cost`, and `supplier`. `order_parts_technician` similarly excludes cost, availability, and supplier snapshots.
 
 ### ORDENPIEZA (Order ↔ Part line item)
 
@@ -203,10 +212,10 @@ payment, and closing — with a dedicated warranty path.
 4. Admin generates the budget (regardless of stock availability) and **notifies the customer**.
 5. **Customer decision** (recorded by admin; **auto-routes** the order):
    - **Approved** → sets `authorized` → repair → register used parts & work → mark repair complete →
-     payment → delivery notification → close order.
+     payment → `awaiting_withdrawal` when the balance is resolved → record delivery → close order.
    - **Deferred** (reason required) → order on hold (awaiting part/authorization) → returns to
      customer decision.
-   - **Rejected** → close order directly.
+   - **Rejected** → `awaiting_withdrawal` without repair → record delivery → close order.
 6. On close, a **warranty order** may be opened: it looks up history by serial number and starts
    a new order linked to the original via `IdOrdenGarantiaOrigen`.
 
@@ -245,6 +254,8 @@ Notes:
 - **Super** is the superuser (edit-all; only role with real access to Seguridad).
 - **Administrativo** opens, budgets, and closes orders; manages customers/equipment/inventory.
 - **Técnico** only _creates_ in Evaluation and Repair (matches the technician lane in the flow);
-  read-only on equipment/inventory.
+  read-only on equipment and the safe inventory projection. During an assigned evaluation, a
+  technician may propose a new part with commercial values fixed to zero/null until administration
+  completes the source record.
 - **Cliente** sees only public content.
 - These rules MUST be enforced server-side via Supabase RLS policies, not only in the UI.

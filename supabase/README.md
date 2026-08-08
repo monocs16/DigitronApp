@@ -84,6 +84,14 @@ This repository establishes explicit privileges and default privileges in:
 
 Review those defaults and the table's RLS policies rather than assuming either layer is sufficient by itself.
 
+### Technician inventory read models
+
+`parts_technician` and `order_parts_technician` are physical `public` tables protected by RLS, not views. Migration `20260808054134_secure_technician_read_models.sql` preserved the former Data API relation names while removing view-owner permission semantics. Authenticated access is constrained by their explicit policies, and the projections contain no stock, unit cost, supplier, or order-part commercial snapshots.
+
+Functions in the non-exposed `private` schema synchronize these tables transactionally from `parts` and `order_parts`. Their `search_path` is fixed and direct `EXECUTE` is revoked from `PUBLIC`, `anon`, `authenticated`, and `service_role`. Application code must write the commercial source tables and treat the read models as projections.
+
+Migration `20260808063014_extend_parts_catalog.sql` adds nullable `location`, `datasheet`, `nte_substitute`, and `image` columns to `parts` and mirrors those technician-safe fields into `parts_technician`. Any future safe-field change must update the source table, projection, trigger column list, generated TypeScript types, grants/RLS verification, and both admin and technician queries as one unit.
+
 ## Current migration inventory
 
 The files on disk and `supabase migration list` are authoritative. The current sequence is:
@@ -108,6 +116,8 @@ The files on disk and `supabase migration list` are authoritative. The current s
 | `20260721021428_guard_used_part_inventory.sql`               | Requires a quoted part and sufficient stock before repair consumption.                  |
 | `20260721032000_preserve_budget_when_using_parts.sql`        | Limits budget recalculation to quoted lines and repairs historically affected budgets.  |
 | `20260723000631_add_equipment_description.sql`               | Adds nullable `equipment.description` for forms, inventory, and search.                 |
+| `20260808054134_secure_technician_read_models.sql`           | Replaces privileged technician views with synchronized RLS read-model tables.           |
+| `20260808063014_extend_parts_catalog.sql`                    | Adds location, datasheet, NTE substitute, and image metadata to the parts catalog.      |
 
 If SQL must be inspected manually, obtain the real order instead of copying an old list:
 
@@ -124,6 +134,8 @@ Could not find the 'description' column of 'equipment' in the schema cache
 ```
 
 usually means the application code reached a project where `20260723000631_add_equipment_description.sql` was not applied. It does not mean the table has no rows.
+
+For the parts module, the equivalent missing-column error usually means `20260808063014_extend_parts_catalog.sql` is absent, while a missing `parts_technician` relation or unexpected view behavior indicates that `20260808054134_secure_technician_read_models.sql` has not been applied.
 
 1. Compare `pnpm exec supabase migration list --local` and `--linked`.
 2. Run `pnpm exec supabase db push --linked --dry-run`.
