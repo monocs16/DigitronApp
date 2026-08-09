@@ -1,5 +1,29 @@
 import { supabase } from "@/integrations/supabase/client";
 
+const REPORT_PAGE_SIZE = 1_000;
+const REPORT_SELECT = `id, order_number, stage, technician_id, client_id, created_at, updated_at, intake_at,
+  delivery_at, decision_notified_at, delivery_notified_at, source, authorized,
+  balance_waived, warranty_origin_id, reported_fault, received_accessories,
+  equipment_condition, general_notes, closing_notes, received_by,
+  customers(name, tax_id, phone1, phone2, email, address),
+  equipment(type, brand, model, serial_number, description, purchase_date, purchase_invoice, purchase_store),
+  technician:profiles!orders_technician_id_fkey(full_name),
+  technical_evaluations(diagnosis, technical_notes, evaluated_at),
+  budgets(labor_cost, parts_cost, freight_cost, other_charges, advances, customer_comments,
+    decision, deferred_reason, budgeted_at, decided_at),
+  repairs(state, work_description, started_at, finished_at),
+  payments(amount, method, reference, paid_at)`;
+
+async function getReportOrdersPage(from: number, to: number) {
+  return supabase
+    .from("orders")
+    .select(REPORT_SELECT)
+    .order("created_at", { ascending: false })
+    .range(from, to);
+}
+
+type ReportOrdersPage = NonNullable<Awaited<ReturnType<typeof getReportOrdersPage>>["data"]>;
+
 export const ordersRepository = {
   getAll: async () => {
     const { data, error } = await supabase
@@ -26,13 +50,18 @@ export const ordersRepository = {
   },
 
   getAllForReports: async () => {
-    const { data, error } = await supabase
-      .from("orders")
-      .select(
-        "id, order_number, stage, technician_id, client_id, created_at, warranty_origin_id, customers(name)",
-      );
-    if (error) throw error;
-    return data;
+    const rows: ReportOrdersPage = [];
+    let from = 0;
+
+    while (true) {
+      const { data, error } = await getReportOrdersPage(from, from + REPORT_PAGE_SIZE - 1);
+      if (error) throw error;
+      rows.push(...data);
+      if (data.length < REPORT_PAGE_SIZE) break;
+      from += REPORT_PAGE_SIZE;
+    }
+
+    return rows;
   },
 
   getById: async (orderId: string) => {

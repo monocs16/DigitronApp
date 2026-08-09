@@ -28,6 +28,79 @@ test.describe("Admin — order flow", () => {
     await expect(page.locator("main")).toBeVisible();
   });
 
+  test("report builder selects headers and applies typed conditions", async ({ page }) => {
+    const seeded = await seedTestCustomerEquipment();
+    const browserErrors: string[] = [];
+    page.on("pageerror", (error) => browserErrors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") browserErrors.push(message.text());
+    });
+
+    try {
+      await seedTestOrder(
+        seeded.clientId,
+        seeded.equipmentId,
+        "evaluation",
+        "Orden E2E para exportar reportes",
+      );
+
+      await page.goto("/reports");
+      await expect(page).not.toHaveURL(/\/login/);
+      await expect(page.getByText("Listado de órdenes de servicio", { exact: true })).toBeVisible();
+      await expect(
+        page.getByText("No se pudieron cargar las órdenes para el reporte"),
+      ).not.toBeVisible();
+      await expect(page.getByText("Cargando…", { exact: true })).not.toBeVisible({
+        timeout: 10_000,
+      });
+      for (const removedSummary of [
+        "Rango de fechas",
+        "Órdenes por estado",
+        "Carga por técnico (activas)",
+        "Por mes (últimos 6)",
+        "Top clientes",
+        "Consumo de repuestos",
+      ]) {
+        await expect(page.getByText(removedSummary, { exact: true })).toHaveCount(0);
+      }
+      await expect(page.getByText(/Órdenes de garantía/)).toHaveCount(0);
+
+      await page.getByRole("button", { name: "Mover Número de orden a la derecha" }).click();
+      await expect(page.getByRole("columnheader").nth(0)).toHaveText("Fecha de creación");
+      await expect(page.getByRole("columnheader").nth(1)).toHaveText("Número de orden");
+
+      for (const [format, filename] of [
+        ["CSV (.csv)", "listado-ordenes-de-servicio.csv"],
+        ["Excel (.xls)", "listado-ordenes-de-servicio.xls"],
+        ["PDF (.pdf)", "listado-ordenes-de-servicio.pdf"],
+      ] as const) {
+        await page.getByRole("button", { name: "Exportar listado" }).click();
+        const downloadPromise = page.waitForEvent("download");
+        await page.getByRole("menuitem", { name: format }).click();
+        const download = await downloadPromise;
+        expect(download.suggestedFilename()).toBe(filename);
+      }
+
+      await page.getByLabel("Buscar encabezados…").fill("Diagnóstico");
+      const diagnosisColumn = page.getByRole("checkbox", { name: /Diagnóstico/ });
+      await expect(diagnosisColumn).toBeVisible();
+      await diagnosisColumn.check();
+      await expect(diagnosisColumn).toBeChecked();
+
+      await page.getByRole("button", { name: "Agregar condición Y" }).click();
+      await page.getByLabel("Campo del filtro").click();
+      await page.getByRole("option", { name: "Presupuesto · Total del presupuesto" }).click();
+      await page.getByLabel("Operador del filtro").click();
+      await page.getByRole("option", { name: "es mayor que", exact: true }).click();
+      await page.getByLabel("Valor").fill("0");
+
+      await expect(page.getByRole("heading", { name: "Resultado del listado" })).toBeVisible();
+      expect(browserErrors).toEqual([]);
+    } finally {
+      await deleteTestCustomer(seeded.clientId, seeded.equipmentId);
+    }
+  });
+
   test("new order form renders with all required fields", async ({ page }) => {
     await gotoNewOrderForm(page);
     await expect(page).not.toHaveURL(/\/login/);
