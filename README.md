@@ -393,6 +393,7 @@ No edite `src/routeTree.gen.ts`: lo genera el plugin de TanStack Router.
 | `pnpm run supabase:start`  | Inicia el stack local.                                   |
 | `pnpm run supabase:reset`  | Reinicia la base y crea el superusuario.                 |
 | `pnpm run seed:demo`       | Agrega datos de demostración al stack local.             |
+| `pnpm run seed:reports`    | Agrega órdenes variadas para probar el módulo reportes.  |
 
 ### Importación histórica
 
