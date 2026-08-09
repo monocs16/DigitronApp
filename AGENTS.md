@@ -67,7 +67,7 @@ export const example = createServerFn({ method: "GET" })
 - Consumir desde UI con `useServerFn` + TanStack Query — **no** desde `loader` de rutas públicas (SSR sin Bearer → 401).
 - Auth en server functions: el middleware `attachSupabaseAuth` en [`src/start.ts`](./src/start.ts) reenvía el token de sesión.
 
-Dentro del runtime de la app, la gestión de usuarios en `/usuarios` es el único flujo que usa **service role**. La importación histórica también lo usa como herramienta administrativa explícita, nunca desde el bundle del navegador.
+Dentro del runtime de la app, la gestión de usuarios en `/usuarios` es el único flujo que usa **service role**. La importación histórica y `scripts/seed-report-data.mjs` también lo usan como herramientas explícitas fuera del bundle; el seed de reportes rechaza destinos que no sean Supabase local por HTTP loopback.
 
 Las transiciones de órdenes, decisiones de presupuesto, notificaciones registradas, entrega y garantías usan [`src/lib/orders.functions.ts`](./src/lib/orders.functions.ts). No actualices `orders.stage` directamente desde un repositorio.
 
@@ -101,6 +101,7 @@ Cambios recientes que forman parte del contrato vigente:
 - Navegación interna: `<Link>` / `useNavigate` de `@tanstack/react-router` — no `<a href>` para rutas de la app.
 - Estilos: tokens en `src/styles.css` (oklch); sin colores hardcoded tipo `text-white` / `bg-black`.
 - Tema: `localStorage` key `digitron-theme` (legacy `o3s-theme` migrado en código).
+- `/reports` usa `ordersRepository.getAllForReports()` bajo RLS y procesa selección, orden y filtros en `OrderReportBuilder`. La tabla y CSV/Excel/PDF deben compartir exactamente los encabezados seleccionados y su orden; mantén alineados `REPORT_SELECT`, `createReportFields`, traducciones y pruebas al agregar campos.
 
 ---
 
@@ -117,6 +118,7 @@ pnpm run build:vercel    # build Vercel/Nitro usado por producción
 pnpm run ci:check        # typecheck + lint + audit + cobertura
 pnpm run test:e2e        # Playwright contra Supabase local
 pnpm run test:e2e:ui     # Playwright UI
+pnpm run seed:reports    # datos idempotentes para reportes; solo Supabase local
 pnpm run lint
 ```
 
@@ -125,6 +127,8 @@ En dev, el plugin Cloudflare puede colgar el arranque; por eso `dev` usa `CF_WOR
 El hook `pre-push` siempre ejecuta `ci:check`. También ejecuta E2E cuando encuentra Supabase CLI y Docker; `SKIP_E2E_HOOK=1` omite únicamente ese paso. En GitHub, CI valida los PR a `main`; después de un push exitoso a `main`, CD ejecuta E2E con Supabase local y solo entonces despliega a Vercel.
 
 Los módulos del detalle de una orden son colapsables. En Playwright, expande el módulo relevante con los helpers de `e2e/helpers/` y acota los locators al card correspondiente. Al sembrar datos, respeta los triggers: una línea `quoted` puede crear/upsert el presupuesto, por lo que el presupuesto debe sembrarse primero cuando el escenario requiere valores específicos.
+
+El E2E de reportes debe sembrar al menos una orden propia, probar el reordenamiento y las descargas CSV/Excel/PDF, y eliminar sus filas al finalizar. Para inspección manual puede usar `pnpm run seed:reports`; no elimines su validación de URL loopback ni la reutilices contra producción.
 
 ---
 

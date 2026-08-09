@@ -18,13 +18,20 @@ assigned to the current technician, orders awaiting parts/authorization, and key
 
 ### Requirement: Reports (Reportes)
 
-The system SHALL provide reports over a selectable date range covering order throughput, revenue
-from payments, parts consumption, and warranty orders, exportable to a printable document.
+The system SHALL provide an RLS-scoped, configurable service-order list. Authorized users SHALL be
+able to select and reorder headers from order and related records, combine typed conditions with
+AND/OR logic, and export the filtered result as CSV, Excel, or PDF.
 
-#### Scenario: Revenue report for a date range
+#### Scenario: Configure and filter a report
 
-- **WHEN** an authorized user selects a date range and runs the revenue report
-- **THEN** the system shows payments totals for that range and offers a printable export
+- **WHEN** an authorized user selects headers, changes their order, and applies text, number, date,
+  empty-value, or boolean conditions
+- **THEN** the system shows only matching orders with the requested header order
+
+#### Scenario: Export a configured report
+
+- **WHEN** an authorized user exports the current report as CSV, Excel, or PDF
+- **THEN** the downloaded file preserves the visible filters and header order
 
 #### Scenario: Reports respect access
 

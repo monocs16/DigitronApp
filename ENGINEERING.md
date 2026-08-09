@@ -49,6 +49,7 @@ src/
 ├── routes/                         # TanStack Router file-based
 │   └── _authenticated/             # Layout y rutas protegidas
 ├── components/                     # Componentes de aplicación y shadcn/ui
+│   └── order-report-builder.tsx    # Selector, filtros, tabla y exportación de reportes
 ├── hooks/                          # Contextos y hooks compartidos
 ├── integrations/supabase/
 │   ├── client.ts                   # Cliente del navegador
@@ -61,6 +62,8 @@ src/
 │   ├── *.functions.ts              # Server functions sensibles
 │   ├── access.ts                   # Matriz de permisos de módulos
 │   ├── digitron.ts                 # Roles, etapas y decisiones
+│   ├── order-report.ts             # Campos, operadores y evaluación pura de filtros
+│   ├── order-report-export.ts      # Serialización segura de CSV y SpreadsheetML
 │   ├── state-machine.ts            # Transiciones y gates
 │   └── service-order-pdf.ts        # Llenado de plantilla PDF
 ├── locales/                        # Recursos i18n
@@ -350,7 +353,23 @@ Si cambia este flujo, pruebe tanto el trigger de creación como las funciones ad
 - Registra un anticipo positivo como `Cancela <monto> CRC de revision` en `Observaciones`; si no hay anticipo, indica que no se registró.
 - Se descarga al crear la orden y puede reimprimirse desde el detalle.
 
-Los reportes usan jsPDF y jspdf-autotable. Si cambia una etiqueta de etapa o moneda, revise ambos mecanismos de PDF y las traducciones.
+`/reports` usa `ordersRepository.getAllForReports()` bajo la sesión y RLS del navegador. El repositorio solicita órdenes y relaciones en páginas de 1.000 filas, propaga cualquier error y entrega el conjunto permitido a `OrderReportBuilder`; no existe una server function ni un bypass de RLS para esta lectura.
+
+El constructor agrupa campos de orden, cliente, equipo, evaluación, presupuesto, reparación y pagos. `src/lib/order-report.ts` mantiene la lógica pura para:
+
+- operadores de texto sin distinción de mayúsculas ni acentos;
+- comparaciones numéricas reales, no lexicográficas;
+- comparaciones de fechas por día calendario;
+- operadores booleanos y de valores vacíos;
+- grupos de condiciones **Y** separados por alternativas **O**.
+
+La selección ordenada de encabezados es la fuente común para la tabla y las tres exportaciones:
+
+- CSV con BOM UTF-8, escape de comillas/saltos y neutralización de fórmulas;
+- Excel `.xls` mediante SpreadsheetML, con números tipados y texto XML escapado;
+- PDF mediante jsPDF y jspdf-autotable, con orientación horizontal cuando hay más de cinco columnas.
+
+Los filtros y la generación de archivos se ejecutan en el navegador sobre las filas ya autorizadas. Si se agrega o renombra un campo reportable, mantenga alineados `REPORT_SELECT`, `createReportFields`, las traducciones ES/EN, las pruebas unitarias y el E2E de `/reports`.
 
 La acción “notificar cliente” solo guarda `decision_notified_at` o `delivery_notified_at`. No existe entrega real de email todavía; no presente el timestamp como confirmación de envío.
 
@@ -472,6 +491,7 @@ Agregue pruebas unitarias cuando cambie:
 - Transiciones, actores o gates.
 - Etiquetas/constantes con lógica.
 - Funciones puras de cálculo.
+- Operadores, agrupación lógica o serialización de reportes.
 
 ### E2E
 
@@ -490,6 +510,15 @@ Convenciones derivadas del flujo actual:
 - Acote locators y expectativas al card relevante (`budget-card`, `history-card`, `internal-notes-card`, etc.) para no coincidir con contenido oculto o repetido.
 - Si el escenario necesita un presupuesto con valores específicos, siémbrelo antes de las líneas `quoted`; su trigger puede crear/upsert `budgets`.
 - Pruebe el saldo con datos persistidos. Cambios de presupuesto aún no guardados deben bloquear pagos y no crear un balance aparente.
+- En `/reports`, verifique que el orden de encabezados llegue a la tabla y a CSV/Excel/PDF, y que cada descarga use el formato esperado.
+
+Para inspección manual del módulo de reportes puede sembrar escenarios idempotentes con:
+
+```bash
+pnpm run seed:reports
+```
+
+`scripts/seed-report-data.mjs` usa service role exclusivamente como herramienta local, rechaza destinos no loopback y presupone los perfiles creados por `seed:admin`. No adapte esa protección para apuntar a un proyecto remoto.
 
 ### Checklist proporcional al cambio
 
