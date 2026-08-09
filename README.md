@@ -22,7 +22,7 @@ Sistema web full-stack para gestionar el ciclo completo de las **órdenes de ser
 - Adjuntar fotografías privadas y mantener notas internas append-only, incluso después del cierre para los roles autorizados.
 - Registrar en historial y auditoría los cambios de evaluación, presupuesto, reparación, pagos, repuestos, notas, fotos, entrega y demás datos operativos.
 - Crear en servidor una nueva orden de garantía enlazada con una orden cerrada; la acción de UI para invocar esta capacidad todavía está pendiente.
-- Consultar paneles, reportes y exportaciones PDF.
+- Consultar el tablero operativo y construir listados de órdenes con encabezados configurables, filtros lógicos y exportación CSV, Excel o PDF.
 - Administrar cuentas y roles sin registro público.
 
 ## Módulos
@@ -37,11 +37,17 @@ Sistema web full-stack para gestionar el ciclo completo de las **órdenes de ser
 | `/clients`         | Administrativo, super                                     | Directorio, mantenimiento y búsqueda por nombre, teléfono o cédula.                                                        |
 | `/equipment`       | Lectura técnico; edición administrativo/super             | Activos con descripción, historial y búsqueda por descripción, marca, modelo o serie; los errores ofrecen reintento.       |
 | `/inventory`       | Lectura restringida técnico; edición administrativo/super | Catálogo ampliado; técnicos ven metadatos operativos y administración también ve stock, costo y proveedor.                 |
-| `/reports`         | Administrativo, super                                     | Resúmenes por etapa, técnico y periodo; repuestos y garantías; PDF.                                                        |
+| `/reports`         | Administrativo, super                                     | Listado configurable de órdenes: selección y orden de encabezados, filtros tipados y exportación CSV, Excel o PDF.         |
 | `/usuarios`        | Super                                                     | Crear, cambiar rol y eliminar usuarios mediante operaciones solo servidor.                                                 |
 | `/configuracion`   | Usuarios autenticados                                     | Perfil, tema e idioma.                                                                                                     |
 
 La visibilidad de la UI mejora la experiencia, pero la autorización efectiva está en **Postgres RLS** y en las validaciones de las server functions.
+
+### Reportes configurables
+
+`/reports` carga bajo RLS los datos relacionados de órdenes, clientes, equipos, evaluaciones, presupuestos, reparaciones y pagos. El usuario puede seleccionar cualquier encabezado disponible, cambiar su orden y combinar condiciones de texto, número, fecha o valor lógico mediante grupos **Y** y alternativas **O**.
+
+La tabla y las exportaciones siempre usan las órdenes filtradas y el orden visible de los encabezados. El menú de exportación genera CSV, Excel (`.xls` compatible con SpreadsheetML) o PDF; el CSV neutraliza textos con apariencia de fórmula antes de abrirlos en una hoja de cálculo. Los paneles anteriores de rango de fechas, estado, carga por técnico, últimos meses, clientes, repuestos y garantías ya no forman parte de este módulo.
 
 ---
 
@@ -224,19 +230,19 @@ Si esa consulta falla, la página muestra el error real y permite reintentar; no
 
 ## Stack
 
-| Capa            | Tecnología                                     |
-| --------------- | ---------------------------------------------- |
-| Framework       | TanStack Start, React 19, Vite 7               |
-| Routing y datos | TanStack Router + TanStack Query               |
-| UI              | Tailwind CSS v4, shadcn/ui, Radix UI, Recharts |
-| Formularios     | React Hook Form + Zod                          |
-| Backend interno | TanStack `createServerFn`                      |
-| Datos           | Supabase Postgres + RLS                        |
-| Auth y archivos | Supabase Auth + Storage privado                |
-| PDF             | `pdf-lib`, jsPDF y jspdf-autotable             |
-| i18n            | i18next + react-i18next                        |
-| Testing         | Vitest + Playwright                            |
-| Deploy          | Cloudflare Workers o Vercel/Nitro              |
+| Capa            | Tecnología                                        |
+| --------------- | ------------------------------------------------- |
+| Framework       | TanStack Start, React 19, Vite 7                  |
+| Routing y datos | TanStack Router + TanStack Query                  |
+| UI              | Tailwind CSS v4, shadcn/ui, Radix UI, Recharts    |
+| Formularios     | React Hook Form + Zod                             |
+| Backend interno | TanStack `createServerFn`                         |
+| Datos           | Supabase Postgres + RLS                           |
+| Auth y archivos | Supabase Auth + Storage privado                   |
+| Documentos      | `pdf-lib`, jsPDF, jspdf-autotable y SpreadsheetML |
+| i18n            | i18next + react-i18next                           |
+| Testing         | Vitest + Playwright                               |
+| Deploy          | Cloudflare Workers o Vercel/Nitro                 |
 
 ---
 
@@ -394,6 +400,16 @@ No edite `src/routeTree.gen.ts`: lo genera el plugin de TanStack Router.
 | `pnpm run supabase:reset`  | Reinicia la base y crea el superusuario.                 |
 | `pnpm run seed:demo`       | Agrega datos de demostración al stack local.             |
 | `pnpm run seed:reports`    | Agrega órdenes variadas para probar el módulo reportes.  |
+
+### Datos locales para reportes
+
+Con Supabase local iniciado, ejecute:
+
+```bash
+pnpm run seed:reports
+```
+
+El comando asegura primero el superusuario local y después ejecuta [`scripts/seed-report-data.mjs`](./scripts/seed-report-data.mjs). El seed es idempotente, usa identificadores fijos y crea escenarios variados de clientes, equipos, órdenes, evaluaciones, presupuestos, reparaciones, pagos y repuestos. Como protección, exige la service role emitida por Supabase CLI y rechaza cualquier URL que no sea HTTP loopback (`localhost`, `127.0.0.1` o `::1`).
 
 ### Importación histórica
 

@@ -104,8 +104,8 @@
 ## 13. Reporting & dashboard
 
 - [x] 13.1 Rework `dashboard.tsx` (Tablero): role-scoped counters, stage distribution, assigned-to-me, awaiting parts/authorization
-- [x] 13.2 Rework `reports.tsx` (Reportes): date-range throughput, revenue from payments, parts consumption, warranty orders; printable export; deny access to tecnico per matrix
-- [ ] 13.3 Manual verification: dashboard scopes per role; reports blocked for tecnico
+- [x] 13.2 Rework `reports.tsx` (Reportes): configurable and ordered headers, typed AND/OR filters, CSV/Excel/PDF export; deny access to tecnico per matrix
+- [ ] 13.3 Manual verification: dashboard scopes per role; configured report order/filters/exports; reports blocked for tecnico
 
 ## 14. i18n & UX polish
 

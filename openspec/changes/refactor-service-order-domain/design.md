@@ -110,6 +110,19 @@ Physical schema uses English snake_case (`technical_evaluations`, `order_parts`,
 per project language standard, mapping from the Spanish ER identifiers documented in
 `docs/data-model.md`. Domain/UI labels are localized via i18n.
 
+### D10 — RLS-scoped configurable reports with browser-side exports
+
+`/reports` reads order and related data through the browser Supabase client and RLS, in pages of
+1,000 rows. Pure client-side logic evaluates typed AND/OR filters, and the ordered header selection
+drives both the visible table and CSV, SpreadsheetML/Excel, and jsPDF exports. This avoids a service
+role or a report-specific server API and keeps export dependencies compatible with Cloudflare.
+
+- Alternative: restore fixed dashboard aggregations → rejected because the current requirement is
+  ad hoc service-order listings rather than summary cards.
+- Trade-off: filtering requires all authorized report rows in browser memory. If data volume makes
+  this impractical, replace it with an RLS-aware server-side query contract while preserving the
+  same field/operator semantics.
+
 ## Risks / Trade-offs
 
 - **Breaking schema reset wipes existing dev data** → Mitigation: this is pre-export dev; document
@@ -122,7 +135,7 @@ per project language standard, mapping from the Spanish ER identifiers documente
 - **Stage machine + RLS divergence** (UI allows what RLS blocks or vice-versa) → Mitigation:
   single matrix constant mirrored in docs; server functions re-validate transitions.
 - **Cloudflare Workers runtime limits** → Mitigation: no new native deps; keep PDF export on the
-  existing `jspdf` client-side path.
+  existing `jspdf` path and spreadsheet serialization browser-side.
 - **Scope is large for one change** → Mitigation: `tasks.md` is phased (schema → types/server →
   per-module UX → verification); each phase is independently testable.
 

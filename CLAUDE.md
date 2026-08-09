@@ -22,6 +22,7 @@ This file contains Claude-specific working rules. It does **not** replace the pr
 - The parts catalog includes optional `location`, `datasheet`, `nte_substitute`, and `image` metadata. Technicians read safe fields from the RLS tables `parts_technician` and `order_parts_technician`; these are trigger-maintained read models, not security-definer views, and must never include stock, unit cost, supplier, or commercial snapshots.
 - Never turn a failed query into an empty collection. Repositories propagate errors; screens distinguish loading, legitimate empty data, and failure, and provide an actionable retry.
 - Only quoted parts recalculate `budgets.parts_cost`. Recording a used part requires a quoted line and stock, and must preserve the approved budget.
+- `/reports` is a configurable RLS-scoped order list, not the former summary dashboard. `OrderReportBuilder` owns header selection/order and typed client-side filters; the visible order must remain identical in CSV, SpreadsheetML/Excel, and PDF exports. The report seed is local-only and rejects non-loopback targets.
 - Production CD runs quality checks, E2E against local Supabase, then deploys to Vercel. Cloudflare Workers remains a supported alternate build.
 
 ## 1. Core Principles
