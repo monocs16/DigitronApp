@@ -24,6 +24,7 @@ Sistema web full-stack para gestionar el ciclo completo de las **órdenes de ser
 - Crear en servidor una nueva orden de garantía enlazada con una orden cerrada; la acción de UI para invocar esta capacidad todavía está pendiente.
 - Consultar el tablero operativo y construir listados de órdenes con encabezados configurables, filtros lógicos y exportación CSV, Excel o PDF.
 - Administrar cuentas y roles sin registro público.
+- Consultar la versión formal `O3S v1.0` y descargar el Manual de Usuario oficial desde el sidebar autenticado.
 
 ## Módulos
 
@@ -218,15 +219,18 @@ flowchart TB
 
 ### Dónde se consultan los datos
 
-Para equipos, el llamado comienza en [`src/routes/_authenticated/equipment.tsx`](./src/routes/_authenticated/equipment.tsx), donde TanStack Query ejecuta `equipmentRepository.getAll()`. El repositorio está en [`src/lib/repositories/equipment.repository.ts`](./src/lib/repositories/equipment.repository.ts) y hace el `select` sobre `equipment` con el cliente browser de Supabase.
+Para equipos, el llamado comienza en [`src/routes/_authenticated/equipment.tsx`](./src/routes/_authenticated/equipment.tsx), donde TanStack Query ejecuta `equipmentRepository.getPage(...)`. El repositorio está en [`src/lib/repositories/equipment.repository.ts`](./src/lib/repositories/equipment.repository.ts) y combina búsqueda, orden, conteo y rango sobre `equipment` con el cliente browser de Supabase.
 
 ```text
-/equipment → useQuery → equipmentRepository.getAll()
-           → supabase.from("equipment").select(...)
+/equipment → useQuery(["equipment", { page, pageSize, search }])
+           → equipmentRepository.getPage(...)
+           → supabase.from("equipment").select(..., { count: "exact" }).range(...)
            → Supabase Data API/PostgREST → Postgres + RLS
 ```
 
 Si esa consulta falla, la página muestra el error real y permite reintentar; no presenta el inventario como vacío. Las server functions se reservan para transiciones, decisiones, entrega, garantías y otras reglas sensibles que requieren validación adicional.
+
+Los listados principales de órdenes, clientes, equipos e inventario solicitan como máximo 50 filas por página. Búsqueda y filtros se aplican antes de `.range(...)` en PostgREST. Órdenes usa `public.orders_list`, un read model `security_invoker` que aplana únicamente los campos de la tabla sin evadir los grants ni RLS de las relaciones base; por ello los técnicos continúan recibiendo solo sus órdenes asignadas.
 
 ## Stack
 

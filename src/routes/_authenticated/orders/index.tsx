@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { PlusCircle, Search } from "lucide-react";
 import { useTechnicians } from "@/hooks/use-technicians";
@@ -30,6 +30,9 @@ import {
 } from "@/components/ui/table";
 import { getStageLabel, STAGE_ORDER, type OrderStage } from "@/lib/digitron";
 import { StageBadge } from "@/components/status-badge";
+import { PaginationControls } from "@/components/pagination-controls";
+import { QueryErrorAlert } from "@/components/query-error-alert";
+import { clampPageToCount, MAX_PAGE_SIZE } from "@/lib/pagination";
 
 type OrdersSearch = { clientId?: string; equipmentId?: string };
 
@@ -41,58 +44,59 @@ export const Route = createFileRoute("/_authenticated/orders/")({
   component: OrdersPage,
 });
 
-type OrderRow = {
-  id: string;
-  order_number: string;
-  stage: OrderStage;
-  technician_id: string | null;
-  client_id: string;
-  equipment_id: string;
-  created_at: string;
-  customers: { name: string } | null;
-  equipment: { brand: string; model: string } | null;
-  technician: { full_name: string } | null;
-};
-
 function OrdersPage() {
   const { t } = useTranslation();
   const { roles, session, authReady } = useAuth();
   const { clientId, equipmentId } = Route.useSearch();
   const navigate = useNavigate();
-  const [stage, setStage] = useState<string>("all");
+  const [stage, setStage] = useState<OrderStage | "all">("all");
   const [technician, setTechnician] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
 
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["orders"],
-    queryFn: () => ordersRepository.getAll() as Promise<OrderRow[]>,
+  const query = useQuery({
+    queryKey: [
+      "orders",
+      {
+        page,
+        pageSize: MAX_PAGE_SIZE,
+        search: q.trim(),
+        stage,
+        technician,
+        fromDate,
+        toDate,
+        clientId,
+        equipmentId,
+      },
+    ],
+    queryFn: () =>
+      ordersRepository.getPage({
+        page,
+        pageSize: MAX_PAGE_SIZE,
+        search: q,
+        stage: stage === "all" ? undefined : stage,
+        technicianId: technician === "all" ? undefined : technician,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        clientId,
+        equipmentId,
+      }),
     enabled: typeof window !== "undefined" && authReady && !!session,
+    placeholderData: keepPreviousData,
   });
+  const orders = query.data?.rows ?? [];
+  const count = query.data?.count ?? 0;
 
   const { data: techs = [] } = useTechnicians();
   const canNewOrder = canCreate(roles, "os_apertura");
 
-  const filtered = useMemo(() => {
-    return orders.filter((o) => {
-      if (clientId && o.client_id !== clientId) return false;
-      if (equipmentId && o.equipment_id !== equipmentId) return false;
-      if (stage !== "all" && o.stage !== stage) return false;
-      if (technician !== "all") {
-        if (technician === "none" && o.technician_id) return false;
-        if (technician !== "none" && o.technician_id !== technician) return false;
-      }
-      if (fromDate && new Date(o.created_at) < new Date(fromDate)) return false;
-      if (toDate && new Date(o.created_at) > new Date(toDate + "T23:59:59")) return false;
-      if (q) {
-        const hay =
-          `${o.order_number} ${o.customers?.name ?? ""} ${o.equipment?.brand ?? ""} ${o.equipment?.model ?? ""}`.toLowerCase();
-        if (!hay.includes(q.toLowerCase())) return false;
-      }
-      return true;
-    });
-  }, [orders, clientId, equipmentId, stage, technician, fromDate, toDate, q]);
+  useEffect(() => setPage(1), [clientId, equipmentId]);
+  useEffect(() => {
+    const validPage = clampPageToCount(page, count, MAX_PAGE_SIZE);
+    if (validPage !== page) setPage(validPage);
+  }, [count, page]);
 
   return (
     <div className="space-y-6">
@@ -133,14 +137,23 @@ function OrdersPage() {
                 <Input
                   placeholder={t("orders.searchPlaceholder")}
                   value={q}
-                  onChange={(e) => setQ(e.target.value)}
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setPage(1);
+                  }}
                   className="pl-8"
                 />
               </div>
             </div>
             <div className="space-y-2">
               <Label>{t("common.status")}</Label>
-              <Select value={stage} onValueChange={setStage}>
+              <Select
+                value={stage}
+                onValueChange={(value) => {
+                  setStage(value as OrderStage | "all");
+                  setPage(1);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -156,7 +169,13 @@ function OrdersPage() {
             </div>
             <div className="space-y-2">
               <Label>{t("common.technician")}</Label>
-              <Select value={technician} onValueChange={setTechnician}>
+              <Select
+                value={technician}
+                onValueChange={(value) => {
+                  setTechnician(value);
+                  setPage(1);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -174,74 +193,103 @@ function OrdersPage() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-2">
                 <Label>{t("common.from")}</Label>
-                <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(e.target.value);
+                    setPage(1);
+                  }}
+                />
               </div>
               <div className="space-y-2">
                 <Label>{t("common.to")}</Label>
-                <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(e.target.value);
+                    setPage(1);
+                  }}
+                />
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-testid="orders-list-card">
         <CardHeader>
-          <CardTitle className="text-base">
-            {t("orders.count", { count: filtered.length })}
-          </CardTitle>
+          <CardTitle className="text-base">{t("orders.count", { count })}</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {query.error ? (
+            <QueryErrorAlert
+              error={query.error}
+              isFetching={query.isFetching}
+              onRetry={() => void query.refetch()}
+            />
+          ) : query.isLoading ? (
             <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-          ) : filtered.length === 0 ? (
+          ) : orders.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("orders.emptyFiltered")}</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("common.code")}</TableHead>
-                  <TableHead>{t("common.client")}</TableHead>
-                  <TableHead>{t("common.equipment")}</TableHead>
-                  <TableHead>{t("common.status")}</TableHead>
-                  <TableHead>{t("common.technician")}</TableHead>
-                  <TableHead>{t("common.date")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((o) => (
-                  <TableRow
-                    key={o.id}
-                    className="cursor-pointer"
-                    onClick={() => navigate({ to: "/orders/$orderId", params: { orderId: o.id } })}
-                  >
-                    <TableCell className="font-medium">
-                      <Link
-                        to="/orders/$orderId"
-                        params={{ orderId: o.id }}
-                        className="hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {o.order_number}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{o.customers?.name ?? t("common.noData")}</TableCell>
-                    <TableCell>
-                      {o.equipment
-                        ? `${o.equipment.brand} ${o.equipment.model}`
-                        : t("common.noData")}
-                    </TableCell>
-                    <TableCell>
-                      <StageBadge stage={o.stage} t={t} />
-                    </TableCell>
-                    <TableCell>{o.technician?.full_name ?? t("common.noData")}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDate(o.created_at)}
-                    </TableCell>
+            <>
+              <Table aria-busy={query.isFetching}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("common.code")}</TableHead>
+                    <TableHead>{t("common.client")}</TableHead>
+                    <TableHead>{t("common.equipment")}</TableHead>
+                    <TableHead>{t("common.status")}</TableHead>
+                    <TableHead>{t("common.technician")}</TableHead>
+                    <TableHead>{t("common.date")}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((o) => (
+                    <TableRow
+                      key={o.id}
+                      className="cursor-pointer"
+                      onClick={() =>
+                        navigate({ to: "/orders/$orderId", params: { orderId: o.id } })
+                      }
+                    >
+                      <TableCell className="font-medium">
+                        <Link
+                          to="/orders/$orderId"
+                          params={{ orderId: o.id }}
+                          className="hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {o.order_number}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{o.customer_name ?? t("common.noData")}</TableCell>
+                      <TableCell>
+                        {o.equipment_brand || o.equipment_model
+                          ? `${o.equipment_brand ?? ""} ${o.equipment_model ?? ""}`.trim()
+                          : t("common.noData")}
+                      </TableCell>
+                      <TableCell>
+                        <StageBadge stage={o.stage} t={t} />
+                      </TableCell>
+                      <TableCell>{o.technician_name ?? t("common.noData")}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(o.created_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <PaginationControls
+                page={page}
+                pageSize={MAX_PAGE_SIZE}
+                count={count}
+                isFetching={query.isFetching}
+                onPageChange={setPage}
+              />
+            </>
           )}
         </CardContent>
       </Card>

@@ -1,19 +1,49 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getPageRange, type PageRequest, type PaginatedResult } from "@/lib/pagination";
+import { buildIlikeOrFilter } from "./query-helpers";
+
+const EQUIPMENT_LIST_SELECT =
+  "id, type, brand, model, description, serial_number, purchase_invoice, purchase_store, purchase_date";
+
+export type EquipmentListRow = {
+  id: string;
+  type: string;
+  brand: string;
+  model: string;
+  description: string | null;
+  serial_number: string | null;
+  purchase_invoice: string | null;
+  purchase_store: string | null;
+  purchase_date: string | null;
+};
 
 function equipmentSearchFilter(term: string): string {
-  const pattern = `%${term.trim().replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
-  return ["description", "model", "serial_number", "brand"]
-    .map((column) => `${column}.ilike.${pattern}`)
-    .join(",");
+  return buildIlikeOrFilter(["description", "model", "serial_number", "brand"], term);
 }
 
 export const equipmentRepository = {
+  getPage: async ({
+    page,
+    pageSize,
+    search = "",
+  }: PageRequest): Promise<PaginatedResult<EquipmentListRow>> => {
+    const { from, to } = getPageRange(page, pageSize);
+    let query = supabase.from("equipment").select(EQUIPMENT_LIST_SELECT, { count: "exact" });
+
+    if (search.trim()) query = query.or(equipmentSearchFilter(search));
+
+    const { data, error, count } = await query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+    if (error) throw error;
+    return { rows: data, count: count ?? 0 };
+  },
+
   getAll: async () => {
     const { data, error } = await supabase
       .from("equipment")
-      .select(
-        "id, type, brand, model, description, serial_number, purchase_invoice, purchase_store, purchase_date",
-      )
+      .select(EQUIPMENT_LIST_SELECT)
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data;

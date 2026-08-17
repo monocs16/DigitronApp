@@ -32,6 +32,23 @@ async function postRow<T>(
   return rows[0];
 }
 
+async function postRows<T>(
+  apiUrl: string,
+  serviceRoleKey: string,
+  table: string,
+  body: Record<string, unknown>[],
+): Promise<T[]> {
+  const response = await fetch(`${apiUrl}/rest/v1/${table}`, {
+    method: "POST",
+    headers: adminHeaders(serviceRoleKey),
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`seed ${table}: ${response.status} ${await response.text()}`);
+  }
+  return (await response.json()) as T[];
+}
+
 async function deleteWhere(
   apiUrl: string,
   serviceRoleKey: string,
@@ -108,9 +125,9 @@ export async function seedTestOrder(
   stage: string,
   reportedFault: string,
   technicianId?: string,
-): Promise<{ id: string }> {
+): Promise<{ id: string; order_number: string }> {
   const { apiUrl, serviceRoleKey } = loadE2eSupabaseEnv();
-  return postRow<{ id: string }>(apiUrl, serviceRoleKey, "orders", {
+  return postRow<{ id: string; order_number: string }>(apiUrl, serviceRoleKey, "orders", {
     client_id: clientId,
     equipment_id: equipmentId,
     reported_fault: reportedFault,
@@ -118,6 +135,81 @@ export async function seedTestOrder(
     source: "counter",
     ...(technicianId ? { technician_id: technicianId } : {}),
   });
+}
+
+function assertLocalApiUrl(apiUrl: string): void {
+  const hostname = new URL(apiUrl).hostname;
+  if (!["localhost", "127.0.0.1", "::1"].includes(hostname)) {
+    throw new Error(`Bulk E2E seeds are restricted to local Supabase, received ${hostname}.`);
+  }
+}
+
+export async function seedPaginationDataset(size = 55): Promise<{ prefix: string }> {
+  const { apiUrl, serviceRoleKey } = loadE2eSupabaseEnv();
+  assertLocalApiUrl(apiUrl);
+  const prefix = `E2E-PAGE-${Date.now()}`;
+  const indexes = Array.from({ length: size }, (_, index) => index + 1);
+  const customers = await postRows<{ id: string }>(
+    apiUrl,
+    serviceRoleKey,
+    "customers",
+    indexes.map((index) => ({
+      name: `${prefix}-Customer-${String(index).padStart(3, "0")}`,
+      tax_id: `${prefix}-Tax-${String(index).padStart(3, "0")}`,
+      phone1: `555-${String(index).padStart(4, "0")}`,
+    })),
+  );
+  const equipment = await postRows<{ id: string }>(
+    apiUrl,
+    serviceRoleKey,
+    "equipment",
+    indexes.map((index) => ({
+      type: "E2E pagination device",
+      brand: `${prefix}-Brand`,
+      model: `${prefix}-Model-${String(index).padStart(3, "0")}`,
+      description: `${prefix}-Description-${String(index).padStart(3, "0")}`,
+      serial_number: `${prefix}-Serial-${String(index).padStart(3, "0")}`,
+    })),
+  );
+
+  await postRows(
+    apiUrl,
+    serviceRoleKey,
+    "parts",
+    indexes.map((index) => ({
+      part_code: `${prefix}-Part-${String(index).padStart(3, "0")}`,
+      description: `${prefix}-Part-description-${String(index).padStart(3, "0")}`,
+      location: `Shelf-${index}`,
+      stock: index,
+      unit_cost: 1000 + index,
+      supplier: `${prefix}-Supplier`,
+    })),
+  );
+
+  await postRows(
+    apiUrl,
+    serviceRoleKey,
+    "orders",
+    indexes.map((index) => ({
+      client_id: customers[index - 1].id,
+      equipment_id: equipment[index - 1].id,
+      reported_fault: `${prefix}-Fault-${String(index).padStart(3, "0")}`,
+      stage: "evaluation",
+      source: "counter",
+    })),
+  );
+
+  return { prefix };
+}
+
+export async function deletePaginationDataset(prefix: string): Promise<void> {
+  const { apiUrl, serviceRoleKey } = loadE2eSupabaseEnv();
+  assertLocalApiUrl(apiUrl);
+  const pattern = encodeURIComponent(`${prefix}*`);
+  await deleteWhere(apiUrl, serviceRoleKey, "orders", `reported_fault=like.${pattern}`);
+  await deleteWhere(apiUrl, serviceRoleKey, "equipment", `serial_number=like.${pattern}`);
+  await deleteWhere(apiUrl, serviceRoleKey, "customers", `name=like.${pattern}`);
+  await deleteWhere(apiUrl, serviceRoleKey, "parts", `part_code=like.${pattern}`);
 }
 
 export async function getTestTechnicianId(): Promise<string> {

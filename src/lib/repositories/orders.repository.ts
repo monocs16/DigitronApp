@@ -1,4 +1,33 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { OrderStage } from "@/lib/digitron";
+import { getPageRange, type PageRequest, type PaginatedResult } from "@/lib/pagination";
+import { buildIlikeOrFilter } from "./query-helpers";
+
+const ORDER_LIST_SELECT =
+  "id, order_number, stage, technician_id, client_id, equipment_id, created_at, customer_name, equipment_brand, equipment_model, technician_name";
+
+export type OrderListRow = {
+  id: string;
+  order_number: string;
+  stage: OrderStage;
+  technician_id: string | null;
+  client_id: string;
+  equipment_id: string;
+  created_at: string;
+  customer_name: string | null;
+  equipment_brand: string | null;
+  equipment_model: string | null;
+  technician_name: string | null;
+};
+
+export type OrdersPageRequest = PageRequest & {
+  stage?: OrderStage;
+  technicianId?: string | "none";
+  clientId?: string;
+  equipmentId?: string;
+  fromDate?: string;
+  toDate?: string;
+};
 
 const REPORT_PAGE_SIZE = 1_000;
 const REPORT_SELECT = `id, order_number, stage, technician_id, client_id, created_at, updated_at, intake_at,
@@ -25,6 +54,44 @@ async function getReportOrdersPage(from: number, to: number) {
 type ReportOrdersPage = NonNullable<Awaited<ReturnType<typeof getReportOrdersPage>>["data"]>;
 
 export const ordersRepository = {
+  getPage: async ({
+    page,
+    pageSize,
+    search = "",
+    stage,
+    technicianId,
+    clientId,
+    equipmentId,
+    fromDate,
+    toDate,
+  }: OrdersPageRequest): Promise<PaginatedResult<OrderListRow>> => {
+    const { from, to } = getPageRange(page, pageSize);
+    let query = supabase.from("orders_list").select(ORDER_LIST_SELECT, { count: "exact" });
+
+    if (search.trim()) {
+      query = query.or(
+        buildIlikeOrFilter(
+          ["order_number", "customer_name", "equipment_brand", "equipment_model"],
+          search,
+        ),
+      );
+    }
+    if (stage) query = query.eq("stage", stage);
+    if (technicianId === "none") query = query.is("technician_id", null);
+    else if (technicianId) query = query.eq("technician_id", technicianId);
+    if (clientId) query = query.eq("client_id", clientId);
+    if (equipmentId) query = query.eq("equipment_id", equipmentId);
+    if (fromDate) query = query.gte("created_at", `${fromDate}T00:00:00.000Z`);
+    if (toDate) query = query.lte("created_at", `${toDate}T23:59:59.999Z`);
+
+    const { data, error, count } = await query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+    if (error) throw error;
+    return { rows: data as OrderListRow[], count: count ?? 0 };
+  },
+
   getAll: async () => {
     const { data, error } = await supabase
       .from("orders")

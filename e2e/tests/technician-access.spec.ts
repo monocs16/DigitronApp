@@ -24,6 +24,8 @@ test.describe("Technician — access restrictions", () => {
   test("technician session is authenticated or skipped gracefully", async ({ page }) => {
     await skipIfNoTechnicianSession(page);
     await waitForAuthenticatedShell(page);
+    await expect(page.getByText("O3S v1.0", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Manual de Usuario" })).toBeVisible();
   });
 
   test("technician does not see admin-only navigation items", async ({ page }) => {
@@ -36,6 +38,37 @@ test.describe("Technician — access restrictions", () => {
     await skipIfNoTechnicianSession(page);
 
     await expect(page.getByRole("link", { name: labels.orders.newOrder })).not.toBeVisible();
+  });
+
+  test("paginated orders keep the assigned-technician RLS restriction", async ({ page }) => {
+    await skipIfNoTechnicianSession(page);
+    const technicianId = await getTestTechnicianId();
+    const assignedSeed = await seedTestCustomerEquipment();
+    const unassignedSeed = await seedTestCustomerEquipment();
+
+    try {
+      const assignedOrder = await seedTestOrder(
+        assignedSeed.clientId,
+        assignedSeed.equipmentId,
+        "evaluation",
+        "E2E assigned paginated order",
+        technicianId,
+      );
+      const unassignedOrder = await seedTestOrder(
+        unassignedSeed.clientId,
+        unassignedSeed.equipmentId,
+        "evaluation",
+        "E2E unassigned paginated order",
+      );
+
+      await page.goto("/orders");
+      const card = page.getByTestId("orders-list-card");
+      await expect(card.getByText(assignedOrder.order_number, { exact: true })).toBeVisible();
+      await expect(card.getByText(unassignedOrder.order_number, { exact: true })).toHaveCount(0);
+    } finally {
+      await deleteTestCustomer(assignedSeed.clientId, assignedSeed.equipmentId);
+      await deleteTestCustomer(unassignedSeed.clientId, unassignedSeed.equipmentId);
+    }
   });
 
   test("assigned technician can create an inventory part during evaluation", async ({ page }) => {
@@ -84,7 +117,10 @@ test.describe("Technician — access restrictions", () => {
       ).toBeVisible();
 
       await page.goto("/inventory");
-      const inventoryRow = page.getByRole("row").filter({ hasText: partCode });
+      const inventoryCard = page.getByTestId("inventory-list-card");
+      await inventoryCard.getByLabel("Buscar en el catálogo").fill(partCode);
+      await inventoryCard.getByRole("button", { name: "Buscar" }).click();
+      const inventoryRow = inventoryCard.getByRole("row").filter({ hasText: partCode });
       await expect(inventoryRow).toContainText("Taller B-2");
       await expect(inventoryRow).toContainText("NTE-TECH-1");
       await expect(inventoryRow.getByRole("link", { name: "Ver ficha" })).toHaveAttribute(

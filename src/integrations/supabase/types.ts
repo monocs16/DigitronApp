@@ -133,6 +133,13 @@ export type Database = {
             referencedRelation: "orders";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "budgets_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
+            referencedColumns: ["id"];
+          },
         ];
       };
       customers: {
@@ -247,6 +254,13 @@ export type Database = {
             referencedRelation: "orders";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "order_notes_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
+            referencedColumns: ["id"];
+          },
         ];
       };
       order_parts: {
@@ -299,6 +313,13 @@ export type Database = {
             columns: ["order_id"];
             isOneToOne: false;
             referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_parts_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
             referencedColumns: ["id"];
           },
           {
@@ -361,6 +382,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "order_parts_technician_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "order_parts_technician_part_id_fkey";
             columns: ["part_id"];
             isOneToOne: false;
@@ -397,6 +425,13 @@ export type Database = {
             columns: ["order_id"];
             isOneToOne: false;
             referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_photos_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
             referencedColumns: ["id"];
           },
           {
@@ -520,6 +555,13 @@ export type Database = {
             referencedRelation: "orders";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "orders_warranty_origin_id_fkey";
+            columns: ["warranty_origin_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
+            referencedColumns: ["id"];
+          },
         ];
       };
       parts: {
@@ -574,6 +616,13 @@ export type Database = {
             columns: ["created_from_order_id"];
             isOneToOne: false;
             referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "parts_created_from_order_id_fkey";
+            columns: ["created_from_order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
             referencedColumns: ["id"];
           },
         ];
@@ -653,6 +702,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "payments_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "payments_registered_by_fkey";
             columns: ["registered_by"];
             isOneToOne: false;
@@ -728,6 +784,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "repairs_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "repairs_technician_id_fkey";
             columns: ["technician_id"];
             isOneToOne: false;
@@ -770,6 +833,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "technical_evaluations_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders_list";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "technical_evaluations_technician_id_fkey";
             columns: ["technician_id"];
             isOneToOne: false;
@@ -801,7 +871,44 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      orders_list: {
+        Row: {
+          client_id: string | null;
+          created_at: string | null;
+          customer_name: string | null;
+          equipment_brand: string | null;
+          equipment_id: string | null;
+          equipment_model: string | null;
+          id: string | null;
+          order_number: string | null;
+          stage: Database["public"]["Enums"]["order_stage"] | null;
+          technician_id: string | null;
+          technician_name: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "orders_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "orders_equipment_id_fkey";
+            columns: ["equipment_id"];
+            isOneToOne: false;
+            referencedRelation: "equipment";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "orders_technician_id_fkey";
+            columns: ["technician_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Functions: {
       has_any_role: {

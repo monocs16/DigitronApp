@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Pencil, ClipboardList, Search, AlertCircle } from "lucide-react";
+import { Plus, Pencil, ClipboardList, Search } from "lucide-react";
 import { equipmentRepository } from "@/lib/repositories";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreate, canEdit } from "@/lib/access";
@@ -11,7 +11,6 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -27,6 +26,9 @@ import { DeleteConfirmButton } from "@/components/delete-confirm-button";
 import { EquipmentFormDialog } from "@/components/equipment-form-dialog";
 import { StageBadge } from "@/components/status-badge";
 import { type OrderStage } from "@/lib/digitron";
+import { PaginationControls } from "@/components/pagination-controls";
+import { QueryErrorAlert } from "@/components/query-error-alert";
+import { clampPageToCount, MAX_PAGE_SIZE } from "@/lib/pagination";
 
 export const Route = createFileRoute("/_authenticated/equipment")({
   component: EquipmentPage,
@@ -51,22 +53,24 @@ function EquipmentPage() {
   const mayCreate = canCreate(roles, "equipo");
   const mayEdit = canEdit(roles, "equipo");
 
-  const {
-    data: equipment = [],
-    error: equipmentError,
-    isLoading,
-    isFetching,
-    refetch,
-  } = useQuery({
-    queryKey: ["equipment"],
-    queryFn: () => equipmentRepository.getAll() as Promise<EquipmentRow[]>,
-  });
-
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<EquipmentRow | null>(null);
-
   const [searchTerm, setSearchTerm] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  const equipmentQuery = useQuery({
+    queryKey: ["equipment", { page, pageSize: MAX_PAGE_SIZE, search: submittedSearch }],
+    queryFn: () =>
+      equipmentRepository.getPage({
+        page,
+        pageSize: MAX_PAGE_SIZE,
+        search: submittedSearch,
+      }),
+    placeholderData: keepPreviousData,
+  });
+  const equipment = equipmentQuery.data?.rows ?? [];
+  const count = equipmentQuery.data?.count ?? 0;
 
   const { data: history = [], isFetching: historyLoading } = useQuery({
     queryKey: ["equipment-history", submittedSearch],
@@ -82,6 +86,11 @@ function EquipmentPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  useEffect(() => {
+    const validPage = clampPageToCount(page, count, MAX_PAGE_SIZE);
+    if (validPage !== page) setPage(validPage);
+  }, [count, page]);
 
   return (
     <div className="space-y-6">
@@ -109,6 +118,7 @@ function EquipmentPage() {
             onSubmit={(e) => {
               e.preventDefault();
               setSubmittedSearch(searchTerm.trim());
+              setPage(1);
             }}
           >
             <div className="flex-1 space-y-2">
@@ -116,7 +126,10 @@ function EquipmentPage() {
               <Input
                 id="equipment-search"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
                 placeholder={t("equipmentPage.searchPlaceholder")}
               />
             </div>
@@ -176,35 +189,24 @@ function EquipmentPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-testid="equipment-list-card">
         <CardHeader>
           <CardTitle className="text-base">{t("equipmentPage.inventory")}</CardTitle>
         </CardHeader>
         <CardContent>
-          {equipmentError ? (
-            <Alert variant="destructive">
-              <AlertCircle />
-              <AlertTitle>{t("errorPage.title")}</AlertTitle>
-              <AlertDescription className="space-y-3">
-                <p>{equipmentError.message}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isFetching}
-                  onClick={() => void refetch()}
-                >
-                  {t("common.retry")}
-                </Button>
-              </AlertDescription>
-            </Alert>
+          {equipmentQuery.error ? (
+            <QueryErrorAlert
+              error={equipmentQuery.error}
+              isFetching={equipmentQuery.isFetching}
+              onRetry={() => void equipmentQuery.refetch()}
+            />
           ) : (
             <AsyncCardBody
-              isLoading={isLoading}
+              isLoading={equipmentQuery.isLoading}
               isEmpty={equipment.length === 0}
               emptyMessage={t("equipmentPage.empty")}
             >
-              <Table>
+              <Table aria-busy={equipmentQuery.isFetching}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t("equipmentPage.type")}</TableHead>
@@ -257,6 +259,13 @@ function EquipmentPage() {
                   ))}
                 </TableBody>
               </Table>
+              <PaginationControls
+                page={page}
+                pageSize={MAX_PAGE_SIZE}
+                count={count}
+                isFetching={equipmentQuery.isFetching}
+                onPageChange={setPage}
+              />
             </AsyncCardBody>
           )}
         </CardContent>

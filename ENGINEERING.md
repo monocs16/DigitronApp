@@ -169,9 +169,9 @@ Ejemplo concreto del inventario de equipos:
 
 ```text
 src/routes/_authenticated/equipment.tsx
-  useQuery(["equipment"])
-    → equipmentRepository.getAll()
-      → supabase.from("equipment").select(...)
+  useQuery(["equipment", { page, pageSize, search }])
+    → equipmentRepository.getPage(...)
+      → supabase.from("equipment").select(..., { count: "exact" }).range(...)
         → Supabase Data API/PostgREST
 ```
 
@@ -180,8 +180,8 @@ No existe un endpoint REST propio ni una server function para esa lectura. La co
 El inventario sigue el mismo patrón, pero el repositorio elige la relación según el rol:
 
 ```text
-/inventory → partsRepository.getAll()                → public.parts
-           → partsRepository.getTechnicianCatalog() → public.parts_technician
+/inventory → partsRepository.getPage()           → public.parts
+           → partsRepository.getTechnicianPage() → public.parts_technician
 ```
 
 `public.parts` contiene el contrato comercial completo. `public.parts_technician` conserva solo `id`, `part_code`, `location`, `description`, `datasheet`, `nte_substitute` e `image`; requiere las migraciones `20260808054134_secure_technician_read_models.sql` y `20260808063014_extend_parts_catalog.sql`.
@@ -192,6 +192,8 @@ Responsabilidades:
 - Propagar los errores de Supabase; no convertirlos en una colección vacía.
 - Operaciones de Storage y URLs firmadas.
 - No contener service role ni importar módulos `.server`.
+
+Los listados principales usan `MAX_PAGE_SIZE = 50`, conteo exacto y `.range(from, to)` después de aplicar búsqueda, filtros y ordenamiento. Sus `queryKey` incluyen página y todos los criterios activos. `public.orders_list` es una vista `security_invoker` de solo lectura para combinar campos de orden, cliente, equipo y técnico en la búsqueda PostgREST; las políticas de las tablas subyacentes siguen evaluándose con el JWT del usuario y una relación no legible queda nula en el `LEFT JOIN`.
 
 La pantalla consumidora debe tratar por separado loading, empty y error. Un error accionable muestra el mensaje seguro y un reintento; un fallo de consulta nunca debe hacer parecer que la tabla realmente está vacía.
 

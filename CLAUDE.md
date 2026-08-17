@@ -15,7 +15,7 @@ This file contains Claude-specific working rules. It does **not** replace the pr
 ## Current Project Context
 
 - Digitron is a Spanish-language internal service-order application built with React 19, TanStack Start/Router/Query, Supabase Postgres/Auth/Storage, RLS, and Tailwind/shadcn.
-- Normal CRUD follows `component → TanStack Query → src/lib/repositories/* → supabase-js → Supabase Data API/PostgREST`. For example, `/equipment` calls `equipmentRepository.getAll()`; there is no custom REST route for that read.
+- Normal CRUD follows `component → TanStack Query → src/lib/repositories/* → supabase-js → Supabase Data API/PostgREST`. Main lists call paginated repository methods such as `equipmentRepository.getPage(...)`; there is no custom REST route for that read.
 - Sensitive workflow operations use authenticated TanStack `createServerFn` handlers. User administration is the only current application workflow that uses service role and must remain server-only; the one-off historical import is privileged tooling, not browser code.
 - The active order path uses `awaiting_withdrawal`, not the removed `delivered` value. A rejected estimate remains pending pickup; delivery records `received_by` and closes the order.
 - Schema-dependent code and its migration are one deploy unit. Apply migrations locally and remotely and regenerate `src/integrations/supabase/types.ts` before deploying code that selects new fields such as `equipment.description`.
