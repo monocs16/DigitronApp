@@ -47,7 +47,7 @@ export default defineConfig({
     },
     {
       name: "admin",
-      testMatch: /order-flow\.spec\.ts/,
+      testMatch: /(order-flow|pagination-and-manual)\.spec\.ts/,
       dependencies: ["setup-admin"],
       use: {
         ...devices["Desktop Chrome"],

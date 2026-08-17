@@ -30,7 +30,7 @@ Documentación extendida: [`ENGINEERING.md`](./ENGINEERING.md) · setup humano: 
 - **Nunca** importar `@/integrations/supabase/client.server` desde componentes, hooks o código que llegue al navegador.
 - **Nunca** poner `SUPABASE_SERVICE_ROLE_KEY` (ni ningún secreto) en variables `VITE_*`.
 - Los archivos en `src/integrations/supabase/` están pensados como integración centralizada; si los editas, mantén el patrón env-based (sin URLs ni JWT hardcodeados).
-- El flujo habitual es `componente → TanStack Query → repositorio → supabase-js → Data API`. Por ejemplo, `/equipment` llama `equipmentRepository.getAll()`; no existe una ruta REST propia para esa consulta.
+- El flujo habitual es `componente → TanStack Query → repositorio → supabase-js → Data API`. Por ejemplo, el listado `/equipment` llama `equipmentRepository.getPage(...)`; no existe una ruta REST propia para esa consulta.
 - Los repositorios deben propagar el error. Una consulta fallida **no** se convierte en `[]` ni se presenta como “sin datos”: la UI debe distinguir loading, empty y error, mostrar el mensaje seguro y ofrecer reintento.
 
 ---
@@ -102,6 +102,7 @@ Cambios recientes que forman parte del contrato vigente:
 - Estilos: tokens en `src/styles.css` (oklch); sin colores hardcoded tipo `text-white` / `bg-black`.
 - Tema: `localStorage` key `digitron-theme` (legacy `o3s-theme` migrado en código).
 - `/reports` usa `ordersRepository.getAllForReports()` bajo RLS y procesa selección, orden y filtros en `OrderReportBuilder`. La tabla y CSV/Excel/PDF deben compartir exactamente los encabezados seleccionados y su orden; mantén alineados `REPORT_SELECT`, `createReportFields`, traducciones y pruebas al agregar campos.
+- Los listados principales de órdenes, clientes, equipos e inventario usan paginación PostgREST con máximo 50 filas; búsqueda/filtros/orden se aplican antes de `.range(...)` y forman parte de la `queryKey`. `orders_list` es una vista `security_invoker`, no un bypass de RLS.
 
 ---
 

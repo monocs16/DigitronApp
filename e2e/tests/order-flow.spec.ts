@@ -203,7 +203,7 @@ test.describe("Admin — order flow", () => {
 
       await page.goto("/equipment");
       const equipmentSearch = page.getByTestId("equipment-search-card");
-      const equipmentInput = equipmentSearch.getByLabel("Modelo, serie o marca");
+      const equipmentInput = equipmentSearch.getByLabel("Descripción, modelo, serie o marca");
       for (const term of [seeded.model, seeded.serialNumber, seeded.brand]) {
         await equipmentInput.fill(term);
         await equipmentSearch.getByRole("button", { name: "Buscar" }).click();

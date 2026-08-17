@@ -12,6 +12,7 @@ import {
   UserCog,
   Settings,
   Package,
+  BookOpen,
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,6 +32,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { getRoleLabel } from "@/lib/digitron";
 import { canRead, type ModuleKey } from "@/lib/access";
 import type { AppRole } from "@/lib/digitron";
+import {
+  APP_VERSION,
+  APP_VERSION_LABEL,
+  USER_MANUAL_FILENAME,
+  USER_MANUAL_URL,
+} from "@/lib/app-info";
 
 // Each nav item maps to a permission module; `null` means always visible to authenticated users.
 const ALL_ITEMS: {
@@ -117,9 +124,27 @@ export function AppSidebar() {
             <p className="text-xs text-muted-foreground">
               {roles.map((r) => getRoleLabel(r, t)).join(", ")}
             </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{APP_VERSION_LABEL}</p>
           </div>
         )}
-        <div className="flex items-center gap-1 px-1 pb-1">
+        {collapsed && (
+          <p className="pb-1 text-center text-[10px] text-muted-foreground">v{APP_VERSION}</p>
+        )}
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={t("sidebar.userManual")}>
+              <a
+                href={USER_MANUAL_URL}
+                download={USER_MANUAL_FILENAME}
+                aria-label={t("sidebar.userManual")}
+              >
+                <BookOpen aria-hidden="true" />
+                <span>{t("sidebar.userManual")}</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <div className="flex items-center gap-1 pb-1">
           <Button
             variant="ghost"
             size="icon"

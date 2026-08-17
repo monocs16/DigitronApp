@@ -118,6 +118,7 @@ The files on disk and `supabase migration list` are authoritative. The current s
 | `20260723000631_add_equipment_description.sql`               | Adds nullable `equipment.description` for forms, inventory, and search.                 |
 | `20260808054134_secure_technician_read_models.sql`           | Replaces privileged technician views with synchronized RLS read-model tables.           |
 | `20260808063014_extend_parts_catalog.sql`                    | Adds location, datasheet, NTE substitute, and image metadata to the parts catalog.      |
+| `20260817032010_add_orders_list_read_model.sql`              | Adds the RLS-preserving order-list read model and search indexes for paginated lists.   |
 
 If SQL must be inspected manually, obtain the real order instead of copying an old list:
 

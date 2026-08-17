@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus, Pencil, ClipboardList, Search } from "lucide-react";
@@ -26,6 +26,9 @@ import { ClientFormDialog, type ClientEditing } from "@/components/client-form-d
 import { StageBadge } from "@/components/status-badge";
 import { type OrderStage } from "@/lib/digitron";
 import { formatDate } from "@/lib/utils";
+import { PaginationControls } from "@/components/pagination-controls";
+import { QueryErrorAlert } from "@/components/query-error-alert";
+import { clampPageToCount, MAX_PAGE_SIZE } from "@/lib/pagination";
 
 export const Route = createFileRoute("/_authenticated/clients")({
   component: ClientsPage,
@@ -40,15 +43,24 @@ function ClientsPage() {
   const mayCreate = canCreate(roles, "clientes");
   const mayEdit = canEdit(roles, "clientes");
 
-  const { data: clients = [], isLoading } = useQuery({
-    queryKey: ["clients"],
-    queryFn: () => customersRepository.getAll() as Promise<ClientRow[]>,
-  });
-
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ClientRow | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [submittedSearch, setSubmittedSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  const clientsQuery = useQuery({
+    queryKey: ["clients", { page, pageSize: MAX_PAGE_SIZE, search: submittedSearch }],
+    queryFn: () =>
+      customersRepository.getPage({
+        page,
+        pageSize: MAX_PAGE_SIZE,
+        search: submittedSearch,
+      }),
+    placeholderData: keepPreviousData,
+  });
+  const clients = clientsQuery.data?.rows ?? [];
+  const count = clientsQuery.data?.count ?? 0;
 
   const { data: searchResults = [], isFetching: searchLoading } = useQuery({
     queryKey: ["client-history", submittedSearch],
@@ -64,6 +76,11 @@ function ClientsPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  useEffect(() => {
+    const validPage = clampPageToCount(page, count, MAX_PAGE_SIZE);
+    if (validPage !== page) setPage(validPage);
+  }, [count, page]);
 
   return (
     <div className="space-y-6">
@@ -91,6 +108,7 @@ function ClientsPage() {
             onSubmit={(event) => {
               event.preventDefault();
               setSubmittedSearch(searchTerm.trim());
+              setPage(1);
             }}
           >
             <div className="flex-1 space-y-2">
@@ -98,7 +116,10 @@ function ClientsPage() {
               <Input
                 id="client-search"
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setPage(1);
+                }}
                 placeholder={t("clients.searchPlaceholder")}
               />
             </div>
@@ -161,66 +182,81 @@ function ClientsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-testid="clients-list-card">
         <CardHeader>
           <CardTitle className="text-base">{t("clients.allClients")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <AsyncCardBody
-            isLoading={isLoading}
-            isEmpty={clients.length === 0}
-            emptyMessage={t("clients.empty")}
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("common.name")}</TableHead>
-                  <TableHead>{t("clients.taxId")}</TableHead>
-                  <TableHead>{t("clients.phone1")}</TableHead>
-                  <TableHead>{t("common.email")}</TableHead>
-                  <TableHead className="w-[120px] text-right">{t("common.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {clients.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{c.tax_id ?? t("common.noData")}</TableCell>
-                    <TableCell>{c.phone1 ?? t("common.noData")}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {c.email ?? t("common.noData")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild variant="ghost" size="icon" title={t("common.viewOrders")}>
-                        <Link to="/orders" search={{ clientId: c.id }}>
-                          <ClipboardList className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      {mayEdit && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditing(c);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {mayEdit && (
-                        <DeleteConfirmButton
-                          title={t("clients.deleteTitle")}
-                          description={t("clients.deleteDescription")}
-                          onConfirm={() => del.mutate(c.id)}
-                        />
-                      )}
-                    </TableCell>
+          {clientsQuery.error ? (
+            <QueryErrorAlert
+              error={clientsQuery.error}
+              isFetching={clientsQuery.isFetching}
+              onRetry={() => void clientsQuery.refetch()}
+            />
+          ) : (
+            <AsyncCardBody
+              isLoading={clientsQuery.isLoading}
+              isEmpty={clients.length === 0}
+              emptyMessage={t("clients.empty")}
+            >
+              <Table aria-busy={clientsQuery.isFetching}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("common.name")}</TableHead>
+                    <TableHead>{t("clients.taxId")}</TableHead>
+                    <TableHead>{t("clients.phone1")}</TableHead>
+                    <TableHead>{t("common.email")}</TableHead>
+                    <TableHead className="w-[120px] text-right">{t("common.actions")}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </AsyncCardBody>
+                </TableHeader>
+                <TableBody>
+                  {clients.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>{c.tax_id ?? t("common.noData")}</TableCell>
+                      <TableCell>{c.phone1 ?? t("common.noData")}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {c.email ?? t("common.noData")}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild variant="ghost" size="icon" title={t("common.viewOrders")}>
+                          <Link to="/orders" search={{ clientId: c.id }}>
+                            <ClipboardList className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        {mayEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditing(c);
+                              setDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {mayEdit && (
+                          <DeleteConfirmButton
+                            title={t("clients.deleteTitle")}
+                            description={t("clients.deleteDescription")}
+                            onConfirm={() => del.mutate(c.id)}
+                          />
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <PaginationControls
+                page={page}
+                pageSize={MAX_PAGE_SIZE}
+                count={count}
+                isFetching={clientsQuery.isFetching}
+                onPageChange={setPage}
+              />
+            </AsyncCardBody>
+          )}
         </CardContent>
       </Card>
 
