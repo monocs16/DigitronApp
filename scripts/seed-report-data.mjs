@@ -65,18 +65,10 @@ const ids = {
     "30000000-0000-4000-8000-000000000003",
     "30000000-0000-4000-8000-000000000004",
   ],
-  orders: [
-    "40000000-0000-4000-8000-000000000001",
-    "40000000-0000-4000-8000-000000000002",
-    "40000000-0000-4000-8000-000000000003",
-    "40000000-0000-4000-8000-000000000004",
-    "40000000-0000-4000-8000-000000000005",
-    "40000000-0000-4000-8000-000000000006",
-    "40000000-0000-4000-8000-000000000007",
-    "40000000-0000-4000-8000-000000000008",
-    "40000000-0000-4000-8000-000000000009",
-    "40000000-0000-4000-8000-000000000010",
-  ],
+  orders: Array.from(
+    { length: 100 },
+    (_, index) => `40000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+  ),
 };
 
 function isoDaysAgo(days, hour = 15) {
@@ -246,25 +238,28 @@ async function main() {
     await insertIfMissing("parts", part, part.part_code, stats);
   }
 
-  const baseOrder = (index, values) => ({
-    id: ids.orders[index],
-    order_number: `RPT-${String(index + 1).padStart(4, "0")}`,
-    client_id: ids.customers[index % ids.customers.length],
-    equipment_id: ids.equipment[index],
-    source: ["counter", "phone", "web", "other"][index % 4],
-    received_accessories: index % 2 === 0 ? "Cargador y cable de alimentación" : null,
-    equipment_condition: index % 3 === 0 ? "Marcas normales de uso" : "Buen estado físico",
-    created_by: adminId,
-    created_at: isoDaysAgo(150 - index * 15),
-    intake_at: isoDaysAgo(150 - index * 15),
-    updated_at: isoDaysAgo(145 - index * 15),
-    authorized: false,
-    balance_waived: false,
-    ...values,
-  });
+  const baseOrder = (index, values) => {
+    const ageDays = 210 - index * 2;
+    return {
+      id: ids.orders[index],
+      order_number: `RPT-${String(index + 1).padStart(4, "0")}`,
+      client_id: ids.customers[index % ids.customers.length],
+      equipment_id: ids.equipment[index % ids.equipment.length],
+      source: ["counter", "phone", "web", "other"][index % 4],
+      received_accessories: index % 2 === 0 ? "Cargador y cable de alimentación" : null,
+      equipment_condition: index % 3 === 0 ? "Marcas normales de uso" : "Buen estado físico",
+      created_by: adminId,
+      created_at: isoDaysAgo(ageDays),
+      intake_at: isoDaysAgo(ageDays),
+      updated_at: isoDaysAgo(ageDays - 1),
+      authorized: false,
+      balance_waived: false,
+      ...values,
+    };
+  };
 
   // The closed origin is inserted before its warranty follow-up to satisfy the self FK.
-  const orders = [
+  const detailedOrders = [
     baseOrder(0, {
       stage: "intake",
       reported_fault: "Equipo recibido; pendiente de asignación y evaluación inicial.",
@@ -334,11 +329,56 @@ async function main() {
     }),
   ];
 
+  const stages = [
+    "intake",
+    "evaluation",
+    "budget",
+    "customer_decision",
+    "on_hold",
+    "repair",
+    "payment",
+    "awaiting_withdrawal",
+    "closed",
+  ];
+  const generatedOrders = Array.from({ length: 90 }, (_, offset) => {
+    const index = offset + detailedOrders.length;
+    const stage = stages[offset % stages.length];
+    const isClosed = stage === "closed";
+    const isAwaitingWithdrawal = stage === "awaiting_withdrawal";
+    const requiresAuthorization = ["repair", "payment", "awaiting_withdrawal", "closed"].includes(
+      stage,
+    );
+
+    return baseOrder(index, {
+      stage,
+      technician_id: stage === "intake" ? null : technicianId,
+      reported_fault: `Escenario de reportes ${String(index + 1).padStart(3, "0")}: falla intermitente reproducida durante pruebas.`,
+      general_notes: `Orden sintética idempotente para validar paginación, filtros y exportaciones (${stage}).`,
+      authorized: requiresAuthorization,
+      decision_notified_at: [
+        "customer_decision",
+        "on_hold",
+        "repair",
+        "payment",
+        "awaiting_withdrawal",
+        "closed",
+      ].includes(stage)
+        ? isoDaysAgo(205 - index * 2)
+        : null,
+      delivery_notified_at: isAwaitingWithdrawal || isClosed ? isoDaysAgo(203 - index * 2) : null,
+      delivery_at: isClosed ? isoDaysAgo(202 - index * 2) : null,
+      received_by: isClosed ? `Cliente reportes ${String(index + 1).padStart(3, "0")}` : null,
+      closing_notes: isClosed ? "Orden sintética cerrada después de pruebas satisfactorias." : null,
+      balance_waived: isAwaitingWithdrawal && index % 2 === 0,
+    });
+  });
+  const orders = [...detailedOrders, ...generatedOrders];
+
   for (const order of orders) {
     await insertIfMissing("orders", order, order.order_number, stats);
   }
 
-  const evaluations = orders.slice(1).map((order, index) => ({
+  const evaluations = detailedOrders.slice(1).map((order, index) => ({
     id: `50000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
     order_id: order.id,
     technician_id: technicianId,
@@ -534,7 +574,7 @@ async function main() {
 
   console.log(`✓ Report demo data ready at ${parsedApiUrl.origin}.`);
   console.log(`  ${stats.created} row(s) created; ${stats.existing} already present.`);
-  console.log(`  ${reportOrders.length} service orders available from RPT-0001 to RPT-0010.`);
+  console.log(`  ${reportOrders.length} service orders available from RPT-0001 to RPT-0100.`);
   console.log(`  Stages: ${stageSummary}.`);
   console.log(`  Related rows: ${relatedCounts.join(", ")}.`);
 }

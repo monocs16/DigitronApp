@@ -413,7 +413,7 @@ Con Supabase local iniciado, ejecute:
 pnpm run seed:reports
 ```
 
-El comando asegura primero el superusuario local y después ejecuta [`scripts/seed-report-data.mjs`](./scripts/seed-report-data.mjs). El seed es idempotente, usa identificadores fijos y crea escenarios variados de clientes, equipos, órdenes, evaluaciones, presupuestos, reparaciones, pagos y repuestos. Como protección, exige la service role emitida por Supabase CLI y rechaza cualquier URL que no sea HTTP loopback (`localhost`, `127.0.0.1` o `::1`).
+El comando asegura primero el superusuario local y después ejecuta [`scripts/seed-report-data.mjs`](./scripts/seed-report-data.mjs). El seed es idempotente, usa identificadores fijos y crea 100 órdenes (`RPT-0001`–`RPT-0100`) con escenarios variados de clientes, equipos, etapas, evaluaciones, presupuestos, reparaciones, pagos y repuestos. Como protección, exige la service role emitida por Supabase CLI y rechaza cualquier URL que no sea HTTP loopback (`localhost`, `127.0.0.1` o `::1`).
 
 ### Importación histórica
 

@@ -520,7 +520,7 @@ Para inspección manual del módulo de reportes puede sembrar escenarios idempot
 pnpm run seed:reports
 ```
 
-`scripts/seed-report-data.mjs` usa service role exclusivamente como herramienta local, rechaza destinos no loopback y presupone los perfiles creados por `seed:admin`. No adapte esa protección para apuntar a un proyecto remoto.
+`scripts/seed-report-data.mjs` usa service role exclusivamente como herramienta local, rechaza destinos no loopback, presupone los perfiles creados por `seed:admin` y mantiene 100 órdenes idempotentes (`RPT-0001`–`RPT-0100`) para comprobar paginación, filtros y exportaciones. No adapte esa protección para apuntar a un proyecto remoto.
 
 ### Checklist proporcional al cambio
 
