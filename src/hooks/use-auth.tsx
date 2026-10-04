@@ -159,10 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void authService.getSession().then(({ data }) => {
       if (!active || initialized) return;
-      if (data.session) {
-        void applySession(data.session);
-      }
-      // If session is still null, wait for INITIAL_SESSION before clearing loading.
+      void applySession(data.session);
     });
 
     const bootstrapTimeout = setTimeout(() => {
