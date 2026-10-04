@@ -355,6 +355,10 @@ Si cambia este flujo, pruebe tanto el trigger de creación como las funciones ad
 - Registra un anticipo positivo como `Cancela <monto> CRC de revision` en `Observaciones`; si no hay anticipo, indica que no se registró.
 - Se descarga al crear la orden y puede reimprimirse desde el detalle.
 
+La plantilla se regenera con `pnpm run generate:service-order-pdf`. El generador
+requiere Ghostscript (`gs`) para incrustar las fuentes antes de añadir los campos
+editables; conserva los nombres de campo consumidos por la aplicación.
+
 `/reports` usa `ordersRepository.getAllForReports()` bajo la sesión y RLS del navegador. El repositorio solicita órdenes y relaciones en páginas de 1.000 filas, propaga cualquier error y entrega el conjunto permitido a `OrderReportBuilder`; no existe una server function ni un bypass de RLS para esta lectura.
 
 El constructor agrupa campos de orden, cliente, equipo, evaluación, presupuesto, reparación y pagos. `src/lib/order-report.ts` mantiene la lógica pura para:
