@@ -5,26 +5,32 @@ allowBuilds:
   workerd: true
 minimumReleaseAgeExclude:
   - esbuild@0.28.1
-  - brace-expansion@1.1.18
-  - brace-expansion@5.0.9
-  - dompurify@3.4.13
-  - js-yaml@4.3.1
+  - baseline-browser-mapping@2.11.0
+  - brace-expansion@1.1.21
+  - brace-expansion@5.0.12
+  - browserslist@4.28.7
+  - dompurify@3.4.16
+  - js-yaml@4.3.2
   - nanoid@3.3.18
   - postcss@8.5.18
-  - undici@7.29.0
+  - sharp@0.35.4
+  - undici@7.29.1
+  - vitest@4.1.11
 overrides:
-  brace-expansion@<1.1.18: ^1.1.18
-  brace-expansion@>=3.0.0 <5.0.9: ^5.0.9
-  dompurify@<=3.4.12: ^3.4.13
+  baseline-browser-mapping@<2.11.0: ^2.11.0
+  brace-expansion@<1.1.21: ^1.1.21
+  brace-expansion@>=3.0.0 <5.0.12: ^5.0.12
+  browserslist@<=4.28.6: ^4.28.7
+  dompurify@<=3.4.15: ^3.4.16
   esbuild@>=0.27.3 <0.28.1: ^0.28.1
-  js-yaml@>=4.0.0 <4.3.1: ^4.3.1
+  js-yaml@>=4.0.0 <4.3.2: ^4.3.2
   nanoid@<3.3.18: ^3.3.18
   postcss@<8.5.18: ^8.5.18
-  sharp@<0.35.0: 0.35.3
-  undici@>=7.0.0 <7.29.0: ^7.29.0
+  sharp@<0.35.4: 0.35.4
+  undici@>=7.0.0 <7.29.1: ^7.29.1
 # ESLint still depends on minimatch@3, whose CommonJS integration requires the
-# callable brace-expansion@1 API. brace-expansion@5 exports { expand } instead,
-# so forcing the patched major onto that dev-only path breaks lint.
+# callable brace-expansion@1 API. Keep that path on the patched 1.x release;
+# brace-expansion@5 exports { expand } instead, so forcing v5 breaks lint.
 auditConfig:
   ignoreGhsas:
     - GHSA-mh99-v99m-4gvg
