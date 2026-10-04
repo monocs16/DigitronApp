@@ -1,4 +1,5 @@
-import { createFileRoute, Navigate, Outlet, useLocation } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -12,6 +13,14 @@ function AuthLayout() {
   const { t } = useTranslation();
   const { loading, session, profile, authReady } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !session) {
+      void navigate({ to: "/login", search: { redirect: location.href }, replace: true });
+    }
+  }, [loading, location.href, navigate, session]);
+
   if (loading || (session && !authReady)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
@@ -21,7 +30,7 @@ function AuthLayout() {
   }
 
   if (!session) {
-    return <Navigate to="/login" search={{ redirect: location.href }} replace />;
+    return null;
   }
 
   return (
